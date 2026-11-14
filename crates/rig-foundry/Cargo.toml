@@ -1,0 +1,18 @@
+[package]
+name = "rig-foundry"
+version.workspace = true
+edition.workspace = true
+license = "MIT"
+description = "Agent Foundry identity and manifest primitives built on Rig."
+repository = "https://github.com/KigHeart/rig"
+
+[lints]
+workspace = true
+
+[dependencies]
+rig-agent = { path = "../rig-agent", version = "0.42.0", default-features = false }
+rig-core = { path = "../rig-core", version = "0.42.0", default-features = false }
+serde = { workspace = true, features = ["derive"] }
+serde_json = { workspace = true }
+sha2 = { workspace = true }
+thiserror = { workspace = true }
