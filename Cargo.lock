@@ -10000,6 +10000,7 @@ version = "0.42.0"
 dependencies = [
  "rig-agent",
  "rig-core",
+ "semver",
  "serde",
  "serde_json",
  "sha2 0.10.9",
