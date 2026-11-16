@@ -136,6 +136,9 @@ pub enum ManifestError {
     /// A required string is empty, oversized, malformed, or not normalized.
     #[error("invalid manifest field: {0}")]
     InvalidField(&'static str),
+    /// The published agent version is not valid semantic version syntax.
+    #[error("invalid semantic agent version: {0}")]
+    InvalidAgentVersion(String),
     /// A capability identifier appears more than once.
     #[error("duplicate capability identifier: {0}")]
     DuplicateCapability(String),
@@ -167,6 +170,8 @@ impl AgentManifest {
         validate_text(&self.description, "description", 4096)?;
         validate_subject(&self.owner.subject, "owner.subject", 256)?;
         validate_text(&self.agent_version, "agent_version", 64)?;
+        semver::Version::parse(&self.agent_version)
+            .map_err(|_| ManifestError::InvalidAgentVersion(self.agent_version.clone()))?;
         validate_identifier(&self.runtime.provider, "runtime.provider", 128)?;
         validate_text(&self.runtime.model, "runtime.model", 256)?;
         validate_subject(&self.provenance.publisher, "provenance.publisher", 256)?;
@@ -467,6 +472,23 @@ mod tests {
         let mut value = manifest();
         value.limits.max_delegation_depth = 0;
         assert_eq!(value.validate(), Err(ManifestError::InvalidDelegationLimits));
+    }
+
+    #[test]
+    fn agent_version_must_be_semver() {
+        let mut value = manifest();
+        value.agent_version = "v1.0".to_owned();
+        assert_eq!(
+            value.validate(),
+            Err(ManifestError::InvalidAgentVersion("v1.0".to_owned()))
+        );
+    }
+
+    #[test]
+    fn semver_prerelease_versions_are_supported() {
+        let mut value = manifest();
+        value.agent_version = "1.2.3-rc.1+build.7".to_owned();
+        assert!(value.validate().is_ok());
     }
 
     #[test]
