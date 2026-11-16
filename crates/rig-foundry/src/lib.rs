@@ -24,6 +24,7 @@ pub const MANIFEST_SCHEMA_VERSION: u16 = 1;
 /// Declared capabilities are requests the agent may make, not grants of
 /// authority. An independent authority component must authorize each action.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct AgentManifest {
     /// Manifest schema version.
     pub schema_version: u16,
@@ -49,6 +50,7 @@ pub struct AgentManifest {
 
 /// Principal that owns an agent manifest.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct AgentOwner {
     /// Stable principal identifier from the platform identity system.
     pub subject: String,
@@ -56,6 +58,7 @@ pub struct AgentOwner {
 
 /// Provider/model configuration for a Rig-backed agent.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct RigRuntimeSpec {
     /// Rig provider identifier, such as openai or anthropic.
     pub provider: String,
@@ -64,7 +67,11 @@ pub struct RigRuntimeSpec {
 }
 
 /// JSON Schema contracts for the agent's externally visible input and output.
+///
+/// The manifest validator checks basic structure only. The API boundary must
+/// perform full meta-schema and instance validation before accepting a task.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct AgentInterface {
     /// Schema for requests accepted by this agent.
     pub input_schema: serde_json::Value,
@@ -79,6 +86,7 @@ pub struct AgentInterface {
 /// cryptographic attestation; a future publisher-signature layer must verify
 /// claims against a trusted key registry.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct AgentProvenance {
     /// Principal that published this agent version.
     pub publisher: String,
@@ -90,6 +98,7 @@ pub struct AgentProvenance {
 
 /// Declared action/resource surface an agent may request.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct CapabilityDeclaration {
     /// Stable capability identifier.
     pub id: String,
@@ -101,6 +110,7 @@ pub struct CapabilityDeclaration {
 
 /// Resource ceilings applied by a supervisor and authority service.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct ResourceLimits {
     /// Maximum number of child agents this agent may spawn.
     pub max_child_agents: u32,
@@ -242,17 +252,23 @@ impl AgentManifest {
 }
 
 fn validate_schema(schema: &serde_json::Value, field: &'static str) -> Result<(), ManifestError> {
+    const TYPES: [&str; 7] = ["array", "boolean", "integer", "null", "number", "object", "string"];
+
     let Some(object) = schema.as_object() else {
         return Err(ManifestError::InvalidSchema(field));
     };
 
-    if object
-        .get("type")
-        .is_some_and(|value| !value.is_string() && !value.as_array().is_some_and(|items| {
-            items.iter().all(serde_json::Value::is_string)
-        }))
-    {
-        return Err(ManifestError::InvalidSchema(field));
+    if let Some(value) = object.get("type") {
+        let valid_type = value.as_str().is_some_and(|kind| TYPES.contains(&kind))
+            || value.as_array().is_some_and(|items| {
+                !items.is_empty()
+                    && items.iter().all(|item| {
+                        item.as_str().is_some_and(|kind| TYPES.contains(&kind))
+                    })
+            });
+        if !valid_type {
+            return Err(ManifestError::InvalidSchema(field));
+        }
     }
 
     if object
@@ -262,12 +278,19 @@ fn validate_schema(schema: &serde_json::Value, field: &'static str) -> Result<()
         return Err(ManifestError::InvalidSchema(field));
     }
 
-    if object.get("required").is_some_and(|value| {
-        !value
-            .as_array()
-            .is_some_and(|items| items.iter().all(serde_json::Value::is_string))
-    }) {
-        return Err(ManifestError::InvalidSchema(field));
+    if let Some(required) = object.get("required") {
+        let Some(items) = required.as_array() else {
+            return Err(ManifestError::InvalidSchema(field));
+        };
+        let mut names = HashSet::new();
+        for item in items {
+            let Some(name) = item.as_str() else {
+                return Err(ManifestError::InvalidSchema(field));
+            };
+            if !names.insert(name) {
+                return Err(ManifestError::InvalidSchema(field));
+            }
+        }
     }
 
     Ok(())
@@ -409,7 +432,19 @@ mod tests {
     }
 
     #[test]
-    fn input_and_output_contracts_are_part_of_identity() {
+    fn input_contract_is_part_of_identity() {
+        let original = manifest();
+        let mut changed = manifest();
+        changed.interface.input_schema = serde_json::json!({
+            "type": "object",
+            "properties": { "task": { "type": "integer" } },
+            "required": ["task"]
+        });
+        assert_ne!(original.id(), changed.id());
+    }
+
+    #[test]
+    fn output_contract_is_part_of_identity() {
         let original = manifest();
         let mut changed = manifest();
         changed.interface.output_schema = serde_json::json!({
@@ -439,6 +474,42 @@ mod tests {
             value.validate(),
             Err(ManifestError::InvalidSchema("interface.input_schema"))
         );
+    }
+
+    #[test]
+    fn unsupported_schema_types_are_rejected() {
+        let mut value = manifest();
+        value.interface.output_schema = serde_json::json!({ "type": "integerish" });
+        assert_eq!(
+            value.validate(),
+            Err(ManifestError::InvalidSchema("interface.output_schema"))
+        );
+    }
+
+    #[test]
+    fn duplicate_required_properties_are_rejected() {
+        let mut value = manifest();
+        value.interface.input_schema = serde_json::json!({
+            "type": "object",
+            "properties": { "task": { "type": "string" } },
+            "required": ["task", "task"]
+        });
+        assert_eq!(
+            value.validate(),
+            Err(ManifestError::InvalidSchema("interface.input_schema"))
+        );
+    }
+
+    #[test]
+    fn unknown_manifest_fields_are_rejected() {
+        let serialized = serde_json::to_value(manifest());
+        assert!(serialized.is_ok());
+        if let Ok(mut value) = serialized {
+            if let Some(object) = value.as_object_mut() {
+                object.insert("unrecognized".to_owned(), serde_json::json!(true));
+            }
+            assert!(serde_json::from_value::<AgentManifest>(value).is_err());
+        }
     }
 
     #[test]
