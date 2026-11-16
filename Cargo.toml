@@ -192,6 +192,7 @@ url = "2"
 rusqlite = "0.32"
 scylla = "1"
 schemars = "1"
+semver = "1"
 serde = "1"
 serde_yaml = "0.9"
 # 1.0.54: the `float_roundtrip` feature.
