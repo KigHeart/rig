@@ -165,11 +165,11 @@ impl AgentManifest {
 
         validate_text(&self.name, "name", 128)?;
         validate_text(&self.description, "description", 4096)?;
-        validate_text(&self.owner.subject, "owner.subject", 256)?;
+        validate_subject(&self.owner.subject, "owner.subject", 256)?;
         validate_text(&self.agent_version, "agent_version", 64)?;
-        validate_text(&self.runtime.provider, "runtime.provider", 128)?;
+        validate_identifier(&self.runtime.provider, "runtime.provider", 128)?;
         validate_text(&self.runtime.model, "runtime.model", 256)?;
-        validate_text(&self.provenance.publisher, "provenance.publisher", 256)?;
+        validate_subject(&self.provenance.publisher, "provenance.publisher", 256)?;
         validate_text(&self.provenance.source, "provenance.source", 2048)?;
         validate_text(&self.provenance.revision, "provenance.revision", 256)?;
         validate_schema(&self.interface.input_schema, "interface.input_schema")?;
@@ -187,7 +187,7 @@ impl AgentManifest {
 
         let mut capability_ids = HashSet::new();
         for capability in &self.capabilities {
-            validate_text(&capability.id, "capabilities.id", 128)?;
+            validate_identifier(&capability.id, "capabilities.id", 128)?;
             if !capability_ids.insert(capability.id.as_str()) {
                 return Err(ManifestError::DuplicateCapability(capability.id.clone()));
             }
@@ -197,7 +197,7 @@ impl AgentManifest {
 
             let mut actions = HashSet::new();
             for action in &capability.actions {
-                validate_text(action, "capabilities.actions", 128)?;
+                validate_identifier(action, "capabilities.actions", 128)?;
                 if !actions.insert(action.as_str()) {
                     return Err(ManifestError::DuplicateAction(capability.id.clone()));
                 }
@@ -293,6 +293,42 @@ fn validate_schema(schema: &serde_json::Value, field: &'static str) -> Result<()
         }
     }
 
+    Ok(())
+}
+
+fn validate_identifier(
+    value: &str,
+    field: &'static str,
+    max_len: usize,
+) -> Result<(), ManifestError> {
+    validate_text(value, field, max_len)?;
+    if !value.is_ascii()
+        || value.bytes().any(|byte| {
+            !(byte.is_ascii_lowercase()
+                || byte.is_ascii_digit()
+                || matches!(byte, b'-' | b'_' | b'.'))
+        })
+    {
+        return Err(ManifestError::InvalidField(field));
+    }
+    Ok(())
+}
+
+fn validate_subject(
+    value: &str,
+    field: &'static str,
+    max_len: usize,
+) -> Result<(), ManifestError> {
+    validate_text(value, field, max_len)?;
+    if !value.is_ascii()
+        || value.bytes().any(|byte| {
+            !(byte.is_ascii_lowercase()
+                || byte.is_ascii_digit()
+                || matches!(byte, b':' | b'/' | b'-' | b'_' | b'.'))
+        })
+    {
+        return Err(ManifestError::InvalidField(field));
+    }
     Ok(())
 }
 
@@ -418,6 +454,28 @@ mod tests {
         assert_eq!(
             value.validate(),
             Err(ManifestError::UnsupportedSchemaVersion(2))
+        );
+    }
+
+    #[test]
+    fn capability_identifiers_must_be_canonical_ascii_slugs() {
+        let mut value = manifest();
+        if let Some(capability) = value.capabilities.first_mut() {
+            capability.id = "Web Research".to_owned();
+        }
+        assert_eq!(
+            value.validate(),
+            Err(ManifestError::InvalidField("capabilities.id"))
+        );
+    }
+
+    #[test]
+    fn principal_subjects_must_be_canonical_ascii_identifiers() {
+        let mut value = manifest();
+        value.owner.subject = "Org:Tilil".to_owned();
+        assert_eq!(
+            value.validate(),
+            Err(ManifestError::InvalidField("owner.subject"))
         );
     }
 
