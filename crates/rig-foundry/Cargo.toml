@@ -14,5 +14,6 @@ rig-agent = { path = "../rig-agent", version = "0.42.0", default-features = fals
 rig-core = { path = "../rig-core", version = "0.42.0", default-features = false }
 serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true }
+semver = { workspace = true }
 sha2 = { workspace = true }
 thiserror = { workspace = true }
