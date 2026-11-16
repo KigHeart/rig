@@ -33,8 +33,14 @@ pub struct AgentManifest {
     pub description: String,
     /// Owning user, organization, or service principal.
     pub owner: AgentOwner,
+    /// Published agent version, independent of the manifest schema version.
+    pub agent_version: String,
     /// Rig provider and model selection.
     pub runtime: RigRuntimeSpec,
+    /// Input and output contracts for the agent.
+    pub interface: AgentInterface,
+    /// Publisher and source revision metadata. This is provenance data, not a signature.
+    pub provenance: AgentProvenance,
     /// Capabilities the agent may request; these are not grants of authority.
     pub capabilities: Vec<CapabilityDeclaration>,
     /// Hard ceilings requested for this agent instance.
@@ -55,6 +61,31 @@ pub struct RigRuntimeSpec {
     pub provider: String,
     /// Provider model identifier.
     pub model: String,
+}
+
+/// JSON Schema contracts for the agent's externally visible input and output.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct AgentInterface {
+    /// Schema for requests accepted by this agent.
+    pub input_schema: serde_json::Value,
+    /// Schema for the result this agent promises to return.
+    pub output_schema: serde_json::Value,
+}
+
+/// Source attribution for an agent definition.
+///
+/// Provenance is included in the manifest identity so that changing the
+/// publisher or source revision creates a different identity. It is not a
+/// cryptographic attestation; a future publisher-signature layer must verify
+/// claims against a trusted key registry.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct AgentProvenance {
+    /// Principal that published this agent version.
+    pub publisher: String,
+    /// Canonical source location or source-system identifier.
+    pub source: String,
+    /// Immutable source revision, such as a Git commit or artifact digest.
+    pub revision: String,
 }
 
 /// Declared action/resource surface an agent may request.
@@ -107,6 +138,9 @@ pub enum ManifestError {
     /// Delegation is enabled without a positive depth ceiling.
     #[error("child-agent spawning requires a positive delegation-depth limit")]
     InvalidDelegationLimits,
+    /// An input or output contract is not a JSON Schema object with valid basic structure.
+    #[error("invalid JSON Schema structure: {0}")]
+    InvalidSchema(&'static str),
     /// Deterministic JSON serialization failed.
     #[error("manifest serialization failed: {0}")]
     Serialization(String),
@@ -122,8 +156,14 @@ impl AgentManifest {
         validate_text(&self.name, "name", 128)?;
         validate_text(&self.description, "description", 4096)?;
         validate_text(&self.owner.subject, "owner.subject", 256)?;
+        validate_text(&self.agent_version, "agent_version", 64)?;
         validate_text(&self.runtime.provider, "runtime.provider", 128)?;
         validate_text(&self.runtime.model, "runtime.model", 256)?;
+        validate_text(&self.provenance.publisher, "provenance.publisher", 256)?;
+        validate_text(&self.provenance.source, "provenance.source", 2048)?;
+        validate_text(&self.provenance.revision, "provenance.revision", 256)?;
+        validate_schema(&self.interface.input_schema, "interface.input_schema")?;
+        validate_schema(&self.interface.output_schema, "interface.output_schema")?;
 
         if self.limits.max_runtime_seconds == 0
             || self.limits.max_tool_calls == 0
@@ -201,6 +241,38 @@ impl AgentManifest {
     }
 }
 
+fn validate_schema(schema: &serde_json::Value, field: &'static str) -> Result<(), ManifestError> {
+    let Some(object) = schema.as_object() else {
+        return Err(ManifestError::InvalidSchema(field));
+    };
+
+    if object
+        .get("type")
+        .is_some_and(|value| !value.is_string() && !value.as_array().is_some_and(|items| {
+            items.iter().all(serde_json::Value::is_string)
+        }))
+    {
+        return Err(ManifestError::InvalidSchema(field));
+    }
+
+    if object
+        .get("properties")
+        .is_some_and(|value| !value.is_object())
+    {
+        return Err(ManifestError::InvalidSchema(field));
+    }
+
+    if object.get("required").is_some_and(|value| {
+        !value
+            .as_array()
+            .is_some_and(|items| items.iter().all(serde_json::Value::is_string))
+    }) {
+        return Err(ManifestError::InvalidSchema(field));
+    }
+
+    Ok(())
+}
+
 fn validate_text(value: &str, field: &'static str, max_len: usize) -> Result<(), ManifestError> {
     if value.is_empty()
         || value.len() > max_len
@@ -224,9 +296,27 @@ mod tests {
             owner: AgentOwner {
                 subject: "org:tilil".to_owned(),
             },
+            agent_version: "1.0.0".to_owned(),
             runtime: RigRuntimeSpec {
                 provider: "openai".to_owned(),
                 model: "gpt-model".to_owned(),
+            },
+            interface: AgentInterface {
+                input_schema: serde_json::json!({
+                    "type": "object",
+                    "properties": { "task": { "type": "string" } },
+                    "required": ["task"]
+                }),
+                output_schema: serde_json::json!({
+                    "type": "object",
+                    "properties": { "result": { "type": "string" } },
+                    "required": ["result"]
+                }),
+            },
+            provenance: AgentProvenance {
+                publisher: "org:tilil".to_owned(),
+                source: "https://example.test/agents/researcher".to_owned(),
+                revision: "git:0123456789abcdef".to_owned(),
             },
             capabilities: vec![CapabilityDeclaration {
                 id: "web-research".to_owned(),
@@ -315,6 +405,39 @@ mod tests {
         assert_eq!(
             value.validate(),
             Err(ManifestError::InvalidField("owner.subject"))
+        );
+    }
+
+    #[test]
+    fn input_and_output_contracts_are_part_of_identity() {
+        let original = manifest();
+        let mut changed = manifest();
+        changed.interface.output_schema = serde_json::json!({
+            "type": "object",
+            "properties": { "result": { "type": "integer" } },
+            "required": ["result"]
+        });
+        assert_ne!(original.id(), changed.id());
+    }
+
+    #[test]
+    fn provenance_is_part_of_identity() {
+        let original = manifest();
+        let mut changed = manifest();
+        changed.provenance.revision = "git:fedcba9876543210".to_owned();
+        assert_ne!(original.id(), changed.id());
+    }
+
+    #[test]
+    fn malformed_contract_structure_is_rejected() {
+        let mut value = manifest();
+        value.interface.input_schema = serde_json::json!({
+            "type": "object",
+            "properties": []
+        });
+        assert_eq!(
+            value.validate(),
+            Err(ManifestError::InvalidSchema("interface.input_schema"))
         );
     }
 
