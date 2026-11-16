@@ -228,6 +228,8 @@ impl AgentManifest {
             capability.actions.sort();
             capability.resources.sort();
         }
+        canonical.interface.input_schema = canonicalize_json(&canonical.interface.input_schema);
+        canonical.interface.output_schema = canonicalize_json(&canonical.interface.output_schema);
         serde_json::to_vec(&canonical)
             .map_err(|error| ManifestError::Serialization(error.to_string()))
     }
@@ -248,6 +250,26 @@ impl AgentManifest {
                 .map_err(|error| ManifestError::Serialization(error.to_string()))?;
         }
         Ok(encoded)
+    }
+}
+
+/// Recursively sort JSON object keys so manifest identity does not depend on
+/// whether the workspace enables serde_json's insertion-ordered map feature.
+fn canonicalize_json(value: &serde_json::Value) -> serde_json::Value {
+    match value {
+        serde_json::Value::Object(object) => {
+            let mut entries = object.iter().collect::<Vec<_>>();
+            entries.sort_by(|(left, _), (right, _)| left.cmp(right));
+            let mut canonical = serde_json::Map::new();
+            for (key, value) in entries {
+                canonical.insert(key.clone(), canonicalize_json(value));
+            }
+            serde_json::Value::Object(canonical)
+        }
+        serde_json::Value::Array(items) => {
+            serde_json::Value::Array(items.iter().map(canonicalize_json).collect())
+        }
+        scalar => scalar.clone(),
     }
 }
 
@@ -511,6 +533,21 @@ mod tests {
             "required": ["result"]
         });
         assert_ne!(original.id(), changed.id());
+    }
+
+    #[test]
+    fn schema_object_key_order_does_not_change_manifest_identity() {
+        let original = manifest();
+        let mut changed = manifest();
+        let mut schema = serde_json::Map::new();
+        schema.insert("required".to_owned(), serde_json::json!(["task"]));
+        schema.insert(
+            "properties".to_owned(),
+            serde_json::json!({ "task": { "type": "string" } }),
+        );
+        schema.insert("type".to_owned(), serde_json::json!("object"));
+        changed.interface.input_schema = serde_json::Value::Object(schema);
+        assert_eq!(original.id(), changed.id());
     }
 
     #[test]
