@@ -46,10 +46,7 @@ pub struct TypedChannel<T> {
 
 impl<T> TypedChannel<T> {
     /// Declare a typed channel handle.
-    pub fn new(
-        name: impl Into<String>,
-        reducer: ChannelReducer,
-    ) -> Result<Self, StateError> {
+    pub fn new(name: impl Into<String>, reducer: ChannelReducer) -> Result<Self, StateError> {
         let name = name.into();
         validate_channel_name(&name)?;
         Ok(Self {
