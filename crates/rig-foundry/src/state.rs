@@ -112,7 +112,7 @@ impl ChannelState {
             validate_value_shape(name.as_str(), definition.reducer, &incoming)?;
 
             let reduced = match candidate.get(&name) {
-                Some(current) => reduce(definition.reducer, current, &incoming)?,
+                Some(current) => reduce(&name, definition.reducer, current, &incoming)?,
                 None => incoming,
             };
             candidate.insert(name, reduced);
@@ -191,7 +191,15 @@ fn validate_value_shape(
     }
 }
 
+fn timestamp_as_i128(value: &serde_json::Value) -> Option<i128> {
+    value
+        .as_i64()
+        .map(i128::from)
+        .or_else(|| value.as_u64().map(i128::from))
+}
+
 fn reduce(
+    channel: &str,
     reducer: ChannelReducer,
     current: &serde_json::Value,
     incoming: &serde_json::Value,
@@ -219,10 +227,10 @@ fn reduce(
             let incoming_object = incoming.as_object();
             let current_timestamp = current_object
                 .and_then(|object| object.get("timestamp"))
-                .and_then(serde_json::Value::as_f64);
+                .and_then(timestamp_as_i128);
             let incoming_timestamp = incoming_object
                 .and_then(|object| object.get("timestamp"))
-                .and_then(serde_json::Value::as_f64);
+                .and_then(timestamp_as_i128);
 
             match (current_timestamp, incoming_timestamp) {
                 (Some(current_time), Some(incoming_time)) if incoming_time > current_time => {
@@ -232,12 +240,8 @@ fn reduce(
                     Ok(current.clone())
                 }
                 (Some(_), Some(_)) if current == incoming => Ok(current.clone()),
-                (Some(_), Some(_)) => Err(StateError::TimestampConflict(
-                    "max-by-timestamp".to_owned(),
-                )),
-                _ => Err(StateError::InvalidValueShape(
-                    "max-by-timestamp".to_owned(),
-                )),
+                (Some(_), Some(_)) => Err(StateError::TimestampConflict(channel.to_owned())),
+                _ => Err(StateError::InvalidValueShape(channel.to_owned())),
             }
         }
     }
@@ -302,7 +306,7 @@ mod tests {
         assert!(state.apply_updates(update(serde_json::json!({"timestamp": 10, "value": "a"}))).is_ok());
         assert_eq!(
             state.apply_updates(update(serde_json::json!({"timestamp": 10, "value": "b"}))),
-            Err(StateError::TimestampConflict("max-by-timestamp".to_owned()))
+            Err(StateError::TimestampConflict("data".to_owned()))
         );
     }
 
