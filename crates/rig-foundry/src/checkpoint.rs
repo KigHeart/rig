@@ -1,11 +1,11 @@
 //! Durable checkpoint records and frontier-aware resume semantics.
 
 use crate::state::{ChannelState, StateError};
+use rusqlite::{params, Connection, OptionalExtension};
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 use std::path::Path;
 use std::sync::{Arc, Mutex, RwLock};
-use rusqlite::{params, Connection, OptionalExtension};
 use thiserror::Error;
 
 /// Work frontier persisted with a checkpoint.
@@ -419,7 +419,9 @@ mod tests {
     #[test]
     fn memory_checkpointer_saves_and_loads_idempotently() {
         let store = MemoryCheckpointer::default();
-        let value = checkpoint(Frontier::next(vec!["analyse".to_owned()]).unwrap_or(Frontier::Complete));
+        let frontier = Frontier::next(vec!["analyse".to_owned()]);
+        assert!(frontier.is_ok());
+        let value = checkpoint(frontier.unwrap_or(Frontier::Complete));
         assert!(store.save(value.clone()).is_ok());
         assert!(store.save(value.clone()).is_ok());
         assert_eq!(store.load("run-1", "cp-1"), Ok(value));
@@ -428,15 +430,20 @@ mod tests {
     #[test]
     fn checkpoint_identity_cannot_be_reused_for_different_contents() {
         let store = MemoryCheckpointer::default();
-        let first = checkpoint(Frontier::next(vec!["analyse".to_owned()]).unwrap_or(Frontier::Complete));
-        let second = checkpoint(Frontier::next(vec!["report".to_owned()]).unwrap_or(Frontier::Complete));
+        let first_frontier = Frontier::next(vec!["analyse".to_owned()]);
+        let second_frontier = Frontier::next(vec!["report".to_owned()]);
+        assert!(first_frontier.is_ok() && second_frontier.is_ok());
+        let first = checkpoint(first_frontier.unwrap_or(Frontier::Complete));
+        let second = checkpoint(second_frontier.unwrap_or(Frontier::Complete));
         assert!(store.save(first).is_ok());
         assert_eq!(store.save(second), Err(CheckpointError::CheckpointConflict));
     }
 
     #[test]
     fn fork_with_edit_preserves_parent_and_original_state() {
-        let original = checkpoint(Frontier::next(vec!["analyse".to_owned()]).unwrap_or(Frontier::Complete));
+        let frontier = Frontier::next(vec!["analyse".to_owned()]);
+        assert!(frontier.is_ok());
+        let original = checkpoint(frontier.unwrap_or(Frontier::Complete));
         let fork = original.fork_with_edit(
             "run-2",
             "cp-2",
@@ -447,7 +454,10 @@ mod tests {
         if let Ok(fork) = fork {
             assert_eq!(fork.run_id, "run-2");
             assert_eq!(fork.parent_checkpoint_id.as_deref(), Some("cp-1"));
-            assert_eq!(fork.state.get("messages"), Some(&serde_json::json!([{"role": "user", "content": "edited"}])));
+            assert_eq!(
+                fork.state.get("messages"),
+                Some(&serde_json::json!([{"role": "user", "content": "edited"}]))
+            );
             assert!(original.state.get("messages").is_none());
         }
     }
@@ -488,7 +498,10 @@ mod tests {
         assert!(serialized.is_ok());
         if let Ok(mut value) = serialized {
             if let Some(state) = value.get_mut("state").and_then(serde_json::Value::as_object_mut) {
-                if let Some(values) = state.get_mut("values").and_then(serde_json::Value::as_object_mut) {
+                if let Some(values) = state
+                    .get_mut("values")
+                    .and_then(serde_json::Value::as_object_mut)
+                {
                     values.insert("messages".to_owned(), serde_json::json!({"not": "a list"}));
                 }
             }
@@ -497,7 +510,9 @@ mod tests {
             if let Ok(restored) = restored {
                 assert_eq!(
                     restored.validate(),
-                    Err(CheckpointError::State(StateError::InvalidValueShape("messages".to_owned())))
+                    Err(CheckpointError::State(StateError::InvalidValueShape(
+                        "messages".to_owned(),
+                    )))
                 );
             }
         }
