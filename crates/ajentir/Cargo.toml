@@ -1,10 +1,10 @@
 [package]
-name = "ajentir"
+name = "ajentir-state"
 version.workspace = true
 edition.workspace = true
 license = "MIT"
-description = "Durable agent execution substrate built on Rig."
-repository = "https://github.com/KigHeart/rig"
+description = "Typed state and durable checkpoint substrate for AJENTIR."
+repository = "https://github.com/KigHeart/ajentir"
 
 [lints]
 workspace = true
