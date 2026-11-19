@@ -5,6 +5,14 @@
 //! agent; it does not authorize execution. Runtime authority must be enforced
 //! separately at the side-effect boundary.
 
+pub mod checkpoint;
+pub mod state;
+
+pub use checkpoint::{
+    Checkpoint, CheckpointError, Checkpointer, Frontier, MemoryCheckpointer,
+};
+pub use state::{ChannelDefinition, ChannelReducer, ChannelSchema, ChannelState, StateError};
+
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use std::collections::HashSet;
