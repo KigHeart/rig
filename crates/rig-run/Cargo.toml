@@ -1,11 +1,11 @@
 [package]
-name = "rig-run"
+name = "ajentir-run"
 version.workspace = true
 edition.workspace = true
 license = "MIT"
 readme = "README.md"
 description = "The sans-IO agent-run protocol for Rig: data and state transitions; drivers perform the IO."
-repository = "https://github.com/0xPlaygrounds/rig"
+repository = "https://github.com/KigHeart/ajentir"
 
 [package.metadata.docs.rs]
 all-features = true
@@ -16,11 +16,11 @@ workspace = true
 
 [dependencies]
 http = { workspace = true }
-rig-core = { path = "../rig-core", version = "0.42.0", default-features = false }
+rig-core = { package = "ajentir-core", path = "../rig-core", version = "0.42.0", default-features = false  }
 serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true }
 thiserror = { workspace = true }
 tracing = { workspace = true }
 
 [dev-dependencies]
-rig-core = { path = "../rig-core", features = ["test-utils"] }
+rig-core = { package = "ajentir-core", path = "../rig-core", features = ["test-utils"]  }
