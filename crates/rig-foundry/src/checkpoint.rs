@@ -469,14 +469,15 @@ mod tests {
         assert_eq!(value.validate(), Err(CheckpointError::SchemaVersionMismatch));
     }
 
-
     #[test]
     fn sqlite_checkpointer_survives_database_reopen() {
         let path = std::env::temp_dir().join(format!(
             "ajentir-checkpoint-{}.sqlite",
             std::process::id()
         ));
-        let value = checkpoint(Frontier::next(vec!["analyse".to_owned()]).unwrap_or(Frontier::Complete));
+        let frontier = Frontier::next(vec!["analyse".to_owned()]);
+        assert!(frontier.is_ok());
+        let value = checkpoint(frontier.unwrap_or(Frontier::Complete));
         let saved = SqliteCheckpointer::open(&path).and_then(|store| {
             let result = store.save(value.clone());
             drop(store);
@@ -487,7 +488,7 @@ mod tests {
         let loaded = SqliteCheckpointer::open(&path)
             .and_then(|store| store.load("run-1", "cp-1"));
         assert_eq!(loaded, Ok(value));
-        let _ = std::fs::remove_file(path);
+        assert!(std::fs::remove_file(path).is_ok());
     }
 
 
