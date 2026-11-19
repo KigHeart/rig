@@ -35,7 +35,7 @@ impl Frontier {
 
     fn from_nodes(
         nodes: impl IntoIterator<Item = String>,
-        allow_empty: bool,
+        is_next: bool,
     ) -> Result<Self, CheckpointError> {
         let mut nodes = nodes.into_iter().collect::<Vec<_>>();
         if nodes.iter().any(String::is_empty) {
@@ -45,10 +45,10 @@ impl Frontier {
         if nodes.windows(2).any(|pair| pair.first() == pair.get(1)) {
             return Err(CheckpointError::InvalidFrontier);
         }
-        if nodes.is_empty() && !allow_empty {
+        if nodes.is_empty() {
             return Err(CheckpointError::InvalidFrontier);
         }
-        if allow_empty {
+        if is_next {
             Ok(Self::Next(nodes))
         } else {
             Ok(Self::Executing(nodes))
