@@ -3,7 +3,9 @@
 use crate::state::{ChannelState, StateError};
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
-use std::sync::{Arc, RwLock};
+use std::path::Path;
+use std::sync::{Arc, Mutex, RwLock};
+use rusqlite::{params, Connection, OptionalExtension};
 use thiserror::Error;
 
 /// Work frontier persisted with a checkpoint.
@@ -73,9 +75,9 @@ impl Frontier {
             Self::Next(nodes) | Self::Executing(nodes) => nodes,
             Self::Complete => return Ok(()),
         };
-        if nodes.iter().any(String::is_empty)
+        if nodes.is_empty()
+            || nodes.iter().any(String::is_empty)
             || nodes.windows(2).any(|pair| pair.first() >= pair.get(1))
-            || (matches!(self, Self::Executing(_)) && nodes.is_empty())
         {
             return Err(CheckpointError::InvalidFrontier);
         }
@@ -114,6 +116,7 @@ impl Checkpoint {
         {
             return Err(CheckpointError::InvalidIdentifier);
         }
+        self.state.validate()?;
         self.frontier.validate()
     }
 
@@ -198,6 +201,120 @@ impl Checkpointer for MemoryCheckpointer {
     }
 }
 
+/// SQLite-backed checkpointer that survives process restarts.
+///
+/// Each checkpoint is stored as a complete, validated snapshot. The composite
+/// primary key prevents a run from silently reusing a checkpoint identity.
+pub struct SqliteCheckpointer {
+    connection: Mutex<Connection>,
+}
+
+impl SqliteCheckpointer {
+    /// Open or create a persistent SQLite checkpoint database.
+    pub fn open(path: impl AsRef<Path>) -> Result<Self, CheckpointError> {
+        let connection = Connection::open(path)
+            .map_err(|error| CheckpointError::Database(error.to_string()))?;
+        Self::from_connection(connection)
+    }
+
+    /// Create an in-memory SQLite database for tests.
+    pub fn open_in_memory() -> Result<Self, CheckpointError> {
+        let connection = Connection::open_in_memory()
+            .map_err(|error| CheckpointError::Database(error.to_string()))?;
+        Self::from_connection(connection)
+    }
+
+    fn from_connection(connection: Connection) -> Result<Self, CheckpointError> {
+        connection
+            .execute_batch(
+                "PRAGMA journal_mode = WAL;
+                 PRAGMA synchronous = FULL;
+                 CREATE TABLE IF NOT EXISTS ajentir_checkpoints (
+                     run_id TEXT NOT NULL,
+                     checkpoint_id TEXT NOT NULL,
+                     super_step INTEGER NOT NULL,
+                     payload TEXT NOT NULL,
+                     PRIMARY KEY (run_id, checkpoint_id)
+                 );",
+            )
+            .map_err(|error| CheckpointError::Database(error.to_string()))?;
+        Ok(Self {
+            connection: Mutex::new(connection),
+        })
+    }
+}
+
+impl Checkpointer for SqliteCheckpointer {
+    fn save(&self, checkpoint: Checkpoint) -> Result<(), CheckpointError> {
+        checkpoint.validate()?;
+        let payload = serde_json::to_string(&checkpoint)
+            .map_err(|error| CheckpointError::Serialization(error.to_string()))?;
+        let connection = self
+            .connection
+            .lock()
+            .map_err(|_| CheckpointError::StorageUnavailable)?;
+
+        let existing = connection
+            .query_row(
+                "SELECT payload FROM ajentir_checkpoints
+                 WHERE run_id = ?1 AND checkpoint_id = ?2",
+                params![checkpoint.run_id, checkpoint.checkpoint_id],
+                |row| row.get::<_, String>(0),
+            )
+            .optional()
+            .map_err(|error| CheckpointError::Database(error.to_string()))?;
+
+        if let Some(existing_payload) = existing {
+            return if existing_payload == payload {
+                Ok(())
+            } else {
+                Err(CheckpointError::CheckpointConflict)
+            };
+        }
+
+        let super_step = i64::try_from(checkpoint.super_step)
+            .map_err(|_| CheckpointError::InvalidIdentifier)?;
+        connection
+            .execute(
+                "INSERT INTO ajentir_checkpoints
+                 (run_id, checkpoint_id, super_step, payload)
+                 VALUES (?1, ?2, ?3, ?4)",
+                params![
+                    checkpoint.run_id,
+                    checkpoint.checkpoint_id,
+                    super_step,
+                    payload
+                ],
+            )
+            .map_err(|error| CheckpointError::Database(error.to_string()))?;
+        Ok(())
+    }
+
+    fn load(&self, run_id: &str, checkpoint_id: &str) -> Result<Checkpoint, CheckpointError> {
+        let connection = self
+            .connection
+            .lock()
+            .map_err(|_| CheckpointError::StorageUnavailable)?;
+        let payload = connection
+            .query_row(
+                "SELECT payload FROM ajentir_checkpoints
+                 WHERE run_id = ?1 AND checkpoint_id = ?2",
+                params![run_id, checkpoint_id],
+                |row| row.get::<_, String>(0),
+            )
+            .optional()
+            .map_err(|error| CheckpointError::Database(error.to_string()))?
+            .ok_or(CheckpointError::NotFound)?;
+        let checkpoint: Checkpoint = serde_json::from_str(&payload)
+            .map_err(|error| CheckpointError::Serialization(error.to_string()))?;
+        checkpoint.validate()?;
+        if checkpoint.run_id != run_id || checkpoint.checkpoint_id != checkpoint_id {
+            return Err(CheckpointError::InvalidIdentifier);
+        }
+        Ok(checkpoint)
+    }
+}
+
 /// Errors raised by checkpoint validation or persistence.
 #[derive(Clone, Debug, PartialEq, Eq, Error)]
 pub enum CheckpointError {
@@ -213,6 +330,10 @@ pub enum CheckpointError {
     CheckpointConflict,
     #[error("checkpoint storage is unavailable")]
     StorageUnavailable,
+    #[error("checkpoint database error: {0}")]
+    Database(String),
+    #[error("checkpoint serialization error: {0}")]
+    Serialization(String),
     #[error(transparent)]
     State(#[from] StateError),
 }
