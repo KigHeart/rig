@@ -20,7 +20,7 @@ pub enum ChannelReducer {
     AppendMessages,
     /// Merge object keys; incoming values replace existing values for a key.
     MergeMap,
-    /// Keep the value with the greatest numeric `timestamp` field.
+    /// Keep the value with the greatest integer `timestamp` field.
     MaxByTimestamp,
 }
 
@@ -184,6 +184,8 @@ pub enum StateError {
     EmptySchema,
     #[error("invalid channel name: {0}")]
     InvalidChannelName(String),
+    #[error("invalid graph node identifier: {0}")]
+    InvalidNodeId(String),
     #[error("unknown channel: {0}")]
     UnknownChannel(String),
     #[error("invalid value shape for channel {0}")]
@@ -196,7 +198,7 @@ pub enum StateError {
 
 fn validate_node_id(name: &str) -> Result<(), StateError> {
     if name.is_empty() || name.len() > 256 || name.chars().any(char::is_control) {
-        return Err(StateError::InvalidChannelName(name.to_owned()));
+        return Err(StateError::InvalidNodeId(name.to_owned()));
     }
     Ok(())
 }
