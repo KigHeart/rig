@@ -9,7 +9,9 @@ adding explicit state and recovery semantics around agent execution.
 
 ## Current implementation
 
-- **Channel schemas:** versioned channel definitions select a reducer.
+- **Channel schemas:** versioned channel definitions select a reducer, with compile-time 
+  `TypedChannel<T>` handles for Rust-typed reads and writes. Values are serialized 
+  into the checkpoint format and decoded through Serde.
 - **Reducers:** `LastWriteWins`, `AppendList`, `AppendMessages`, `MergeMap`,
   and `MaxByTimestamp`.
 - **Atomic updates:** a malformed update batch is rejected without partially
@@ -57,20 +59,32 @@ multi-host worker lock.
 ```rust
 use ajentir::{
     ChannelDefinition, ChannelReducer, ChannelSchema, ChannelState, Checkpointer, Frontier,
-    SqliteCheckpointer,
+    SqliteCheckpointer, TypedChannel,
 };
+use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
+
+#[derive(Serialize, Deserialize)]
+struct Message {
+    body: String,
+}
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut channels = BTreeMap::new();
-    channels.insert(
-        "messages".to_owned(),
-        ChannelDefinition {
-            reducer: ChannelReducer::AppendMessages,
-        },
-    );
+    let messages = TypedChannel::<Vec<Message>>::new(
+        "messages",
+        ChannelReducer::AppendMessages,
+    )?;
+    channels.insert(messages.name().to_owned(), messages.definition());
     let schema = ChannelSchema::new(1, channels)?;
-    let state = ChannelState::new(schema);
+    let mut state = ChannelState::new(schema);
+    state.apply_typed_update(
+        &messages,
+        vec![Message {
+            body: "checkpoint me".to_owned(),
+        }],
+    )?;
+    let _restored_messages: Option<Vec<Message>> = state.get_typed(&messages)?;
     let checkpoint = ajentir::Checkpoint {
         checkpoint_id: "checkpoint-0001".to_owned(),
         run_id: "run-0001".to_owned(),
