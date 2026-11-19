@@ -9,7 +9,7 @@ pub mod checkpoint;
 pub mod state;
 
 pub use checkpoint::{
-    Checkpoint, CheckpointError, Checkpointer, Frontier, MemoryCheckpointer,
+    Checkpoint, CheckpointError, Checkpointer, Frontier, MemoryCheckpointer, SqliteCheckpointer,
 };
 pub use state::{ChannelDefinition, ChannelReducer, ChannelSchema, ChannelState, StateError};
 
