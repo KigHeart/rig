@@ -11,7 +11,9 @@ pub mod state;
 pub use checkpoint::{
     Checkpoint, CheckpointError, Checkpointer, Frontier, MemoryCheckpointer, SqliteCheckpointer,
 };
-pub use state::{ChannelDefinition, ChannelReducer, ChannelSchema, ChannelState, StateError};
+pub use state::{
+    ChannelDefinition, ChannelReducer, ChannelSchema, ChannelState, NodeUpdate, StateError,
+};
 
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
