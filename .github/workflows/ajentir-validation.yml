@@ -1,0 +1,42 @@
+name: AJENTIR Migration Validation
+
+on:
+  pull_request:
+    branches:
+      - "**"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ajentir-validation-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  cargo-validation:
+    name: AJENTIR Cargo validation
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Install Rust toolchain
+        run: |
+          rustup show
+          rustup component add rustfmt clippy
+
+      - name: Validate locked workspace metadata
+        run: cargo metadata --locked --format-version 1 > /tmp/ajentir-cargo-metadata.json
+
+      - name: Check formatting
+        run: cargo fmt --all -- --check
+
+      - name: Check complete workspace
+        run: cargo check --workspace --all-targets --locked
+
+      - name: Test durable state component
+        run: cargo test -p ajentir-state --locked
+
+      - name: Lint AJENTIR state component
+        run: cargo clippy -p ajentir-state --all-targets --all-features --locked -- -D warnings
