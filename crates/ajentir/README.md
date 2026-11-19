@@ -1,11 +1,10 @@
-# AJENTIR* substrate on Rig
+# AJENTIR state substrate
 
 AJENTIR* is the working design name for a durable agent-execution model being
-prototyped inside Rig's `ajentir` crate. The asterisk is intentional:
+prototyped in the `ajentir-state` component. The asterisk is intentional:
 this is an evolving design hypothesis, not a released framework.
 
-The implementation keeps Rig responsible for model and tool interaction while
-adding explicit state and recovery semantics around agent execution.
+The state component is independent of provider-specific execution. AJENTIR adapters connect model and tool execution to these persistence contracts.
 
 ## Current implementation
 
@@ -57,7 +56,7 @@ multi-host worker lock.
 ## Minimal use
 
 ```rust
-use ajentir::{
+use ajentir_state::{
     ChannelReducer, ChannelSchema, ChannelState, Checkpointer, Frontier,
     SqliteCheckpointer, TypedChannel,
 };
@@ -85,7 +84,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         }],
     )?;
     let _restored_messages: Option<Vec<Message>> = state.get_typed(&messages)?;
-    let checkpoint = ajentir::Checkpoint {
+    let checkpoint = ajentir_state::Checkpoint {
         checkpoint_id: "checkpoint-0001".to_owned(),
         run_id: "run-0001".to_owned(),
         parent_run_id: None,
@@ -95,7 +94,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         state,
         frontier: Frontier::next(vec!["analyst".to_owned()])?,
     };
-    let store = SqliteCheckpointer::open("ajentir.sqlite")?;
+    let store = SqliteCheckpointer::open("ajentir-state.sqlite")?;
     store.save(checkpoint)?;
     Ok(())
 }
