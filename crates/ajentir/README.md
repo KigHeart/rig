@@ -74,7 +74,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let checkpoint = ajentir::Checkpoint {
         checkpoint_id: "checkpoint-0001".to_owned(),
         run_id: "run-0001".to_owned(),
-        parent_checkpoint_id: None,
+        parent_run_id: None,
+    parent_checkpoint_id: None,
         state_schema_version: 1,
         super_step: 0,
         state,
