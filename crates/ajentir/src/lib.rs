@@ -12,6 +12,7 @@ pub use checkpoint::{
 };
 pub use state::{
     ChannelDefinition, ChannelReducer, ChannelSchema, ChannelState, NodeUpdate, StateError,
+    TypedChannel,
 };
 
 /// Rig runtime and tool contracts used by AJENTIR* adapters.
