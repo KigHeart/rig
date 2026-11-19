@@ -1,192 +1,72 @@
-<p align="center">
-<picture>
-    <source media="(prefers-color-scheme: dark)" srcset="img/rig-rebranded-logo-white.svg">
-    <source media="(prefers-color-scheme: light)" srcset="img/rig-rebranded-logo-black.svg">
-    <img src="img/rig-rebranded-logo-white.svg" style="width: 40%; height: 40%;" alt="Rig logo">
-</picture>
-<br>
-<br>
-<a href="https://rig.rs/docs"><img src="https://img.shields.io/badge/📖 docs-rig.rs-dca282.svg" /></a> &nbsp;
-<a href="https://docs.rs/rig/latest/rig/"><img src="https://img.shields.io/badge/docs-API Reference-dca282.svg" /></a> &nbsp;
-<a href="https://crates.io/crates/rig"><img src="https://img.shields.io/crates/v/rig.svg?color=dca282" /></a>
-&nbsp;
-<a href="https://crates.io/crates/rig"><img src="https://img.shields.io/crates/d/rig-core.svg?color=dca282" /></a>
-&nbsp;
-<a href="LICENSE"><img src="https://img.shields.io/crates/l/rig.svg?color=dca282" /></a>
-</br>
-<a href="https://discord.gg/playgrounds"><img src="https://img.shields.io/discord/511303648119226382?color=%236d82cc&label=Discord&logo=discord&logoColor=white" /></a>
-&nbsp;
-<a href=""><img src="https://img.shields.io/badge/built_with-Rust-dca282.svg?logo=rust" /></a>
-&nbsp;
-<a href="https://github.com/0xPlaygrounds/rig"><img src="https://img.shields.io/github/stars/0xPlaygrounds/rig?style=social" alt="stars - rig" /></a>
-<br>
-
-<br>
-</p>
-&nbsp;
-
-
 <div align="center">
 
-[📑 Docs](https://rig.rs/docs)
-<span>&nbsp;&nbsp;•&nbsp;&nbsp;</span>
-[🌐 Website](https://rig.rs)
-<span>&nbsp;&nbsp;•&nbsp;&nbsp;</span>
-[🤝 Contribute](https://github.com/0xPlaygrounds/rig/issues/new)
-<span>&nbsp;&nbsp;•&nbsp;&nbsp;</span>
-[✍🏽 Blogs](https://rig.rs/docs/guides)
-<span>&nbsp;&nbsp;•&nbsp;&nbsp;</span>
-<a href="https://ryzome.ai"><img src="img/ryzome-bg.png" height="32" align="absmiddle" alt="Ryzome" /></a>
+# AJENTIR*
+
+**A Rust-native agentic systems framework.**
+
+*Typed state · Durable execution · Reducer-driven coordination · Explicit control*
+
+[![Rust](https://img.shields.io/badge/language-Rust-orange?logo=rust)](https://www.rust-lang.org/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+[![Repository](https://img.shields.io/badge/GitHub-KigHeart%2Fajentir-181717?logo=github)](https://github.com/KigHeart/ajentir)
 
 </div>
 
-✨ If you would like to help spread the word about Rig, please consider starring the repo!
+AJENTIR is being engineered as a Rust-native framework for building agents whose state, execution progress, and authority boundaries can be inspected and controlled.
 
-> [!WARNING]
-> Here be dragons! As we plan to ship a torrent of features in the following months, future updates **will** contain **breaking changes**. With Rig evolving, we'll annotate changes and highlight migration paths as we encounter them.
+The design combines a deliberately small agent loop with typed, reducer-driven state and durable execution. The goal is not another wrapper around model APIs. It is an execution substrate for agents that must survive interruption, resume from validated state, support human approval, and make their control flow explicit.
 
-## Table of contents
+The asterisk in **AJENTIR*** marks an evolving engineering hypothesis. Capabilities described as planned or in progress are not represented as shipped functionality.
 
-- [Table of contents](#table-of-contents)
-- [What is Rig?](#what-is-rig)
-- [Features](#features)
-- [Runtime choices](#runtime-choices)
-- [Who's using Rig?](#who-is-using-rig)
-- [Get Started](#get-started)
-  - [Simple example](#simple-example)
-- [Integrations](#supported-integrations)
+## Design principles
 
-## What is Rig?
-Rig is a Rust library for building scalable, modular, and ergonomic **LLM-powered** applications.
+- **Rust-native contracts.** Use the type system to make invalid states harder to represent and interfaces explicit.
+- **Small agent loop.** Keep the default execution model understandable: construct a model request, inspect its response, invoke authorized tools, incorporate results, and continue.
+- **Reducer-driven state.** State changes are explicit operations with defined conflict and ordering semantics.
+- **Durable execution.** Persist validated state and execution frontiers so interrupted work can be resumed deliberately.
+- **Control is not capability.** A model proposal is not authority. Approval and policy checks must gate privileged operations.
+- **Determinism where it matters.** Reducer application and state transitions must not depend on task completion order.
+- **Honest recovery semantics.** Checkpointing does not make arbitrary external side effects exactly-once.
 
-More information about this crate can be found in the [official](https://rig.rs/docs) and [crate](https://docs.rs/rig/latest/rig/) API reference documentation.
+## Current architecture
 
-## Features
-- Agentic workflows that can handle multi-turn streaming and prompting
-- A classic agent runtime enabled by default
-- Full [GenAI Semantic Convention](https://opentelemetry.io/docs/specs/semconv/gen-ai/) compatibility
-- 20+ model providers, all under one singular unified interface
-- 10+ vector store integrations, all under one singular unified interface
-- Full support for LLM completion and embedding workflows
-- Support for transcription, audio generation and image generation model capabilities
-- Integrate LLMs in your app with minimal boilerplate
-- Browser-WASM (`wasm32-unknown-unknown`) support for the portable core and
-  classic runtime — see [target support](crates/rig-agent/README.md#target-support)
-  for the full matrix (WASI is not supported; `rig-rmcp`/MCP is native-only)
+The workspace is in transition from its Rig-derived foundation to the AJENTIR public architecture.
 
-## Runtime choices
+- `crates/ajentir` contains the first AJENTIR state and checkpoint substrate: typed channels, versioned schemas, reducers, deterministic update batches, frontier-aware checkpoints, fork-with-edit provenance, and in-memory/SQLite checkpointers.
+- `rig-core`, `rig-agent`, and related provider/integration crates currently supply inherited model, tool, and integration capabilities. They are implementation foundations, not the intended public identity of the framework.
+- `rig-foundry` remains a separate manifest/agent-identity component.
 
-Rig separates portable provider/backend contracts from agent orchestration:
+**Transition status:** the repository and product identity are now AJENTIR, but the root compatibility facade and many inherited crate names/APIs still carry Rig identifiers. They are retained during the migration to avoid silently breaking the existing workspace. They will be replaced or isolated behind AJENTIR-facing interfaces in deliberate, tested steps. This is not yet a claim that every crate has been renamed.
 
-- `rig-core` contains provider-neutral messages, completion models, portable tools,
-  memory and vector-store contracts, and built-in provider mappings.
-- `rig-agent` contains the classic builder, prompt/streaming traits, typed hooks,
-  contextual tools, extraction, and the serializable `AgentRun` state machine. It
-  remains enabled by default.
+## Execution roadmap
 
-The root `rig` facade re-exports both at their familiar paths, so most code
-depends only on `rig`.
+1. Complete the typed state and checkpoint substrate.
+2. Build the default loop runtime on top of that substrate.
+3. Add durable interruption, approval, and resume semantics.
+4. Introduce optional graph execution without making a graph mandatory for simple agents.
+5. Add execution-ledger and policy-gated tool dispatch, with explicit limits around external side effects.
+6. Migrate inherited provider and integration APIs behind AJENTIR-facing crates and documentation.
 
-## Who is using Rig?
-Below is a non-exhaustive list of companies and people who are using Rig:
-- [St Jude](https://www.stjude.org/) - Using Rig for a chatbot utility as part of [`proteinpaint`](https://github.com/stjude/proteinpaint), a genomics visualisation tool.
-- [Coral Protocol](https://www.coralprotocol.org/) - Using Rig extensively, both internally as well as part of the [Coral Rust SDK.](https://github.com/Coral-Protocol/coral-rs)
-- [VT Code](https://github.com/vinhnx/vtcode) - VT Code is a Rust-based terminal coding agent with semantic code intelligence via Tree-sitter and ast-grep. VT Code uses `rig` for simplifying LLM calls and implementing the model picker.
-- [Con](https://github.com/nowledge-co/con) - Con is a GPU-accelerated terminal emulator with a built-in AI agent harness. It uses Rig as the provider abstraction layer for its integrated coding agents.
-- [Dria](https://dria.co/) - a decentralised AI network. Currently using Rig as part of their [compute node.](https://github.com/firstbatchxyz/dkn-compute-node)
-- [Nethermind](https://www.nethermind.io/) - Using Rig as part of their [Neural Interconnected Nodes Engine](https://github.com/NethermindEth/nine) framework.
-- [Neon](https://neon.com) - Using Rig for their [app.build](https://github.com/neondatabase/appdotbuild-agent) V2 reboot in Rust.
-- [Listen](https://github.com/piotrostr/listen) - A framework aiming to become the go-to framework for AI portfolio management agents. Powers [the Listen app.](https://app.listen-rs.com/)
-- [Cairnify](https://cairnify.com/) - helps users find documents, links, and information instantly through an intelligent search bar. Rig provides the agentic foundation behind Cairnify’s AI search experience, enabling tool-calling, reasoning, and retrieval workflows.
-- [Ryzome](https://ryzome.ai) - Ryzome is a visual AI workspace that lets you build interconnected canvases of thoughts, research, and AI agents to orchestrate complex knowledge work.
-- [deepwiki-rs](https://github.com/sopaco/deepwiki-rs) - Turn code into clarity. Generate accurate technical docs and AI-ready context in minutes—perfectly structured for human teams and intelligent agents.
-- [Cortex Memory](https://github.com/sopaco/cortex-mem) - The production-ready memory system for intelligent agents. A complete solution for memory management, from extraction and vector search to automated optimization, with a REST API, MCP, CLI, and insights dashboard out-of-the-box.
-- [Ironclaw](https://github.com/nearai/ironclaw) - A secure personal AI assistant
-- [ilert](https://www.ilert.com/) - Incident management & alerting platform. Uses Rig as the multi-provider abstraction in its agentic LLM proxy powering ilert AI.
-- [Archestra](https://github.com/archestra-ai/archestra) - MCP-native secure AI platform. Uses Rig in its agentic benchmark.
+## What is not claimed yet
 
-For a curated list of Rig projects, libraries, tools, articles, and production users, check out [awesome-rig](https://github.com/0xPlaygrounds/awesome-rig).
+The current state/checkpoint slice does not implement a complete agent runtime, durable approval workflow, distributed leases or fencing, an execution ledger, or exactly-once execution of external side effects. The SQLite checkpointer is durable storage; the in-memory checkpointer is not. These boundaries are intentional and documented.
 
-Are you also using Rig? [Open an issue](https://www.github.com/0xPlaygrounds/rig/issues) to have your name added!
+## Development
 
-## Get Started
-Use the root `rig` facade when you want feature-gated access to companion crates,
-or use `rig-core` directly when you only need the core provider abstractions.
+This is a Rust workspace. Start with the AJENTIR crate:
 
 ```bash
-cargo add rig
-# or: cargo add rig-core
+cargo test -p ajentir
+cargo clippy -p ajentir --all-targets --all-features -- -D warnings
+cargo fmt -- --check
 ```
 
-### Simple example
-```rust
-use rig::prelude::*;
-use rig::providers::openai;
+The commands above are the intended local verification gates; their success is not implied by this README.
 
-#[tokio::main]
-async fn main() -> Result<(), anyhow::Error> {
-    // Create OpenAI client
-    let client = openai::Client::from_env()?;
+## Lineage and attribution
 
-    // Create agent with a single context prompt
-    let comedian_agent = client
-        .agent(openai::GPT_5_2)
-        .preamble("You are a comedian here to entertain the user using humour and jokes.")
-        .build();
+AJENTIR began from a fork of [Rig](https://github.com/0xPlaygrounds/rig), a Rust LLM application framework. The repository retains the upstream MIT licensing and attribution applicable to inherited code. AJENTIR's architecture, runtime semantics, and public identity are being developed as a distinct framework. See [LICENSE](LICENSE) and the relevant source notices.
 
-    // Prompt the agent and print the response
-    let response = comedian_agent.prompt("Entertain me!").await?;
+## License
 
-    println!("{response}");
-
-    Ok(())
-}
-```
-Note using `#[tokio::main]` requires you enable tokio's `macros` and `rt-multi-thread` features
-or just `full` to enable all features (`cargo add tokio --features macros,rt-multi-thread`).
-
-You can find more examples in each crate's `examples` directory (for example, [`examples`](./examples)). Provider-specific integration coverage lives under [`tests/providers`](./tests/providers), with cassette-backed tests that replay offline by default and live-only tests kept separate when real provider APIs are still required. See [`tests/README.md`](./tests/README.md) for test target, replay, record, and cassette safety commands. More detailed use case walkthroughs are regularly published on our [Dev.to Blog](https://dev.to/0thtachi) and added to Rig's official documentation at [rig.rs/docs](https://rig.rs/docs).
-
-## Supported Integrations
-
-The root `rig` facade exposes companion crates behind one feature per integration:
-
-```toml
-rig = { version = "0.36.0", features = ["lancedb", "fastembed"] }
-```
-
-| Integration | Crate | Feature | Module path |
-| --- | --- | --- | --- |
-| AWS Bedrock | [`rig-bedrock`](https://github.com/0xPlaygrounds/rig/tree/main/crates/rig-bedrock) | `bedrock` | `rig::bedrock` |
-| AWS S3Vectors | [`rig-s3vectors`](https://github.com/0xPlaygrounds/rig/tree/main/crates/rig-s3vectors) | `s3vectors` | `rig::s3vectors` |
-| Candle (local Llama/SmolLM2/Qwen3 tools) | [`rig-candle`](https://github.com/0xPlaygrounds/rig/tree/main/crates/rig-candle) | `candle` | `rig::candle` |
-| Cloudflare Vectorize | [`rig-vectorize`](https://github.com/0xPlaygrounds/rig/tree/main/crates/rig-vectorize) | `vectorize` | `rig::vectorize` |
-| FastEmbed | [`rig-fastembed`](https://github.com/0xPlaygrounds/rig/tree/main/crates/rig-fastembed) | `fastembed` | `rig::fastembed` |
-| Google Gemini gRPC | [`rig-gemini-grpc`](https://github.com/0xPlaygrounds/rig/tree/main/crates/rig-gemini-grpc) | `gemini-grpc` | `rig::gemini_grpc` |
-| Google Vertex AI | [`rig-vertexai`](https://github.com/0xPlaygrounds/rig/tree/main/crates/rig-vertexai) | `vertexai` | `rig::vertexai` |
-| HelixDB | [`rig-helixdb`](https://github.com/0xPlaygrounds/rig/tree/main/crates/rig-helixdb) | `helixdb` | `rig::helixdb` |
-| LanceDB | [`rig-lancedb`](https://github.com/0xPlaygrounds/rig/tree/main/crates/rig-lancedb) | `lancedb` | `rig::lancedb` |
-| Memory policies | [`rig-memory`](https://github.com/0xPlaygrounds/rig/tree/main/crates/rig-memory) | `memory` | `rig::memory` |
-| Milvus | [`rig-milvus`](https://github.com/0xPlaygrounds/rig/tree/main/crates/rig-milvus) | `milvus` | `rig::milvus` |
-| MongoDB | [`rig-mongodb`](https://github.com/0xPlaygrounds/rig/tree/main/crates/rig-mongodb) | `mongodb` | `rig::mongodb` |
-| Neo4j | [`rig-neo4j`](https://github.com/0xPlaygrounds/rig/tree/main/crates/rig-neo4j) | `neo4j` | `rig::neo4j` |
-| PostgreSQL | [`rig-postgres`](https://github.com/0xPlaygrounds/rig/tree/main/crates/rig-postgres) | `postgres` | `rig::postgres` |
-| Qdrant | [`rig-qdrant`](https://github.com/0xPlaygrounds/rig/tree/main/crates/rig-qdrant) | `qdrant` | `rig::qdrant` |
-| ScyllaDB | [`rig-scylladb`](https://github.com/0xPlaygrounds/rig/tree/main/crates/rig-scylladb) | `scylladb` | `rig::scylladb` |
-| SQLite | [`rig-sqlite`](https://github.com/0xPlaygrounds/rig/tree/main/crates/rig-sqlite) | `sqlite` | `rig::sqlite` |
-| SurrealDB | [`rig-surrealdb`](https://github.com/0xPlaygrounds/rig/tree/main/crates/rig-surrealdb) | `surrealdb` | `rig::surrealdb` |
-
-`rig::memory` is available without the `memory` feature; it contains the core
-conversation memory traits and in-memory backend re-exported from `rig-core`.
-Enabling `features = ["memory"]` adds reusable history-shaping policy types from
-the `rig-memory` companion crate to the same module.
-
-We also have some other associated crates that have additional functionality you may find helpful when using Rig:
-- `rig-onchain-kit` - the [Rig Onchain Kit.](https://github.com/0xPlaygrounds/rig-onchain-kit) Intended to make interactions between Solana/EVM and Rig much easier to implement.
-
-
-<p align="center">
-<br>
-<br>
-<img src="img/built-by-playgrounds.svg" alt="Build by Playgrounds" width="30%">
-</p>
+MIT. See [LICENSE](LICENSE).
