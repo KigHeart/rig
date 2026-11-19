@@ -69,7 +69,7 @@ channels.insert(
     },
 );
 let schema = ChannelSchema::new(1, channels)?;
-let mut state = ChannelState::new(schema);
+let state = ChannelState::new(schema);
 let checkpoint = rig_foundry::Checkpoint {
     checkpoint_id: "checkpoint-0001".to_owned(),
     run_id: "run-0001".to_owned(),
@@ -81,5 +81,5 @@ let checkpoint = rig_foundry::Checkpoint {
 };
 let store = SqliteCheckpointer::open("ajentir.sqlite")?;
 store.save(checkpoint)?;
-# Ok::<(), Box<dyn std::error::Error>>(())
+Ok::<(), Box<dyn std::error::Error>>(())
 ```
