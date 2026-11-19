@@ -24,6 +24,14 @@ pub enum ChannelReducer {
     MaxByTimestamp,
 }
 
+/// A node's updates for one completed or interrupted super-step.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct NodeUpdate {
+    pub node_id: String,
+    pub channels: BTreeMap<String, serde_json::Value>,
+}
+
 /// Schema declaration for one state channel.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -123,18 +131,31 @@ impl ChannelState {
         updates: BTreeMap<String, serde_json::Value>,
     ) -> Result<(), StateError> {
         let mut candidate = self.values.clone();
+        apply_channel_updates(&self.schema, &mut candidate, updates)?;
+        self.values = candidate;
+        Ok(())
+    }
 
-        for (name, incoming) in updates {
-            let definition = self.schema.definition(&name)?;
-            validate_value_shape(name.as_str(), definition.reducer, &incoming)?;
-
-            let reduced = match candidate.get(&name) {
-                Some(current) => reduce(&name, definition.reducer, current, &incoming)?,
-                None => incoming,
-            };
-            candidate.insert(name, reduced);
+    /// Apply parallel node results in canonical node-name order, not task
+    /// completion order. The complete super-step update is atomic.
+    pub fn apply_node_updates(
+        &mut self,
+        mut updates: Vec<NodeUpdate>,
+    ) -> Result<(), StateError> {
+        for update in &updates {
+            validate_node_id(&update.node_id)?;
+        }
+        updates.sort_by(|left, right| left.node_id.cmp(&right.node_id));
+        if updates.windows(2).any(|pair| {
+            pair.first().zip(pair.get(1)).is_some_and(|(left, right)| left.node_id == right.node_id)
+        }) {
+            return Err(StateError::DuplicateNodeUpdate);
         }
 
+        let mut candidate = self.values.clone();
+        for update in updates {
+            apply_channel_updates(&self.schema, &mut candidate, update.channels)?;
+        }
         self.values = candidate;
         Ok(())
     }
@@ -169,6 +190,32 @@ pub enum StateError {
     InvalidValueShape(String),
     #[error("equal timestamps contain conflicting values in channel {0}")]
     TimestampConflict(String),
+    #[error("a node may contribute only one update per super-step")]
+    DuplicateNodeUpdate,
+}
+
+fn validate_node_id(name: &str) -> Result<(), StateError> {
+    if name.is_empty() || name.len() > 256 || name.chars().any(char::is_control) {
+        return Err(StateError::InvalidChannelName(name.to_owned()));
+    }
+    Ok(())
+}
+
+fn apply_channel_updates(
+    schema: &ChannelSchema,
+    candidate: &mut BTreeMap<String, serde_json::Value>,
+    updates: BTreeMap<String, serde_json::Value>,
+) -> Result<(), StateError> {
+    for (name, incoming) in updates {
+        let definition = schema.definition(&name)?;
+        validate_value_shape(&name, definition.reducer, &incoming)?;
+        let reduced = match candidate.get(&name) {
+            Some(current) => reduce(&name, definition.reducer, current, &incoming)?,
+            None => incoming,
+        };
+        candidate.insert(name, reduced);
+    }
+    Ok(())
 }
 
 fn validate_channel_name(name: &str) -> Result<(), StateError> {
@@ -360,6 +407,39 @@ mod tests {
             state.apply_updates(updates),
             Err(StateError::UnknownChannel("missing".to_owned()))
         );
+    }
+
+
+    #[test]
+    fn parallel_node_updates_reduce_in_node_name_order() {
+        let mut first = state_with(ChannelReducer::AppendMessages);
+        let mut second = state_with(ChannelReducer::AppendMessages);
+        let update_a = NodeUpdate {
+            node_id: "node-a".to_owned(),
+            channels: update(serde_json::json!(["a"])),
+        };
+        let update_z = NodeUpdate {
+            node_id: "node-z".to_owned(),
+            channels: update(serde_json::json!(["z"])),
+        };
+        assert!(first.apply_node_updates(vec![update_z.clone(), update_a.clone()]).is_ok());
+        assert!(second.apply_node_updates(vec![update_a, update_z]).is_ok());
+        assert_eq!(first.get("data"), Some(&serde_json::json!(["a", "z"])));
+        assert_eq!(first.get("data"), second.get("data"));
+    }
+
+    #[test]
+    fn duplicate_node_updates_are_rejected_atomically() {
+        let mut state = state_with(ChannelReducer::AppendMessages);
+        let node_update = NodeUpdate {
+            node_id: "node-a".to_owned(),
+            channels: update(serde_json::json!(["a"])),
+        };
+        assert_eq!(
+            state.apply_node_updates(vec![node_update.clone(), node_update]),
+            Err(StateError::DuplicateNodeUpdate)
+        );
+        assert!(state.get("data").is_none());
     }
 
     #[test]
