@@ -477,6 +477,29 @@ mod tests {
         let _ = std::fs::remove_file(path);
     }
 
+
+    #[test]
+    fn checkpoint_rejects_corrupted_persisted_channel_values() {
+        let original = checkpoint(Frontier::Complete);
+        let serialized = serde_json::to_value(original);
+        assert!(serialized.is_ok());
+        if let Ok(mut value) = serialized {
+            if let Some(state) = value.get_mut("state").and_then(serde_json::Value::as_object_mut) {
+                if let Some(values) = state.get_mut("values").and_then(serde_json::Value::as_object_mut) {
+                    values.insert("messages".to_owned(), serde_json::json!({"not": "a list"}));
+                }
+            }
+            let restored = serde_json::from_value::<Checkpoint>(value);
+            assert!(restored.is_ok());
+            if let Ok(restored) = restored {
+                assert_eq!(
+                    restored.validate(),
+                    Err(CheckpointError::State(StateError::InvalidValueShape("messages".to_owned())))
+                );
+            }
+        }
+    }
+
     #[test]
     fn memory_checkpointer_does_not_claim_durability() {
         let store = MemoryCheckpointer::default();
