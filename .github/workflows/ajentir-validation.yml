@@ -1,6 +1,9 @@
 name: AJENTIR Migration Validation
 
 on:
+  push:
+    branches:
+      - "ajentir/root-facade-migration"
   pull_request:
     branches:
       - "**"
