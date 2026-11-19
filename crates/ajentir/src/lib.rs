@@ -1,8 +1,7 @@
-//! AJENTIR* durable agent execution substrate built on Rig.
+//! AJENTIR typed state and checkpoint substrate.
 //!
-//! AJENTIR* is a design hypothesis under active development. This crate owns
-//! typed run state and durable execution recovery; Rig remains the model and
-//! tool interaction layer.
+//! This component provides typed run state and durable checkpoint recovery.
+ //! Model-provider and tool adapters remain separate from persisted state.
 
 pub mod checkpoint;
 pub mod state;
@@ -15,7 +14,7 @@ pub use state::{
     TypedChannel,
 };
 
-/// Rig runtime and tool contracts used by AJENTIR* adapters.
+/// Compatibility access to inherited model and tool contracts.
 pub mod rig {
     pub use rig_agent::{Agent, AgentHook, AgentRun, AgentRunner};
     pub use rig_core::tool::{Tool, ToolCatalog, ToolContext, ToolResult};
