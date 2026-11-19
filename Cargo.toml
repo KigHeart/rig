@@ -281,10 +281,10 @@ aws-sdk-bedrockruntime = { workspace = true }
 aws-smithy-eventstream = { workspace = true }
 aws-smithy-runtime-api = { workspace = true }
 aws-smithy-types = { workspace = true }
-rig-core = { path = "crates/rig-core", version = "0.42.0", default-features = false, features = [
+rig-core = { package = "ajentir-core", path = "crates/rig-core", version = "0.42.0", default-features = false, features = [
   "test-utils",
 ] }
-rig-agent = { path = "crates/rig-agent", version = "0.42.0", default-features = false, features = [
+rig-agent = { package = "ajentir-agent", path = "crates/rig-agent", version = "0.42.0", default-features = false, features = [
   "test-utils",
 ] }
 tokio = { workspace = true, features = ["full"] }
