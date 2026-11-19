@@ -1,17 +1,17 @@
 [package]
-name = "ajentir"
+name = "ajentir-state"
 version.workspace = true
 edition.workspace = true
 license = "MIT"
-description = "Durable agent execution substrate built on Rig."
-repository = "https://github.com/KigHeart/rig"
+description = "Typed state and durable checkpoint substrate for AJENTIR."
+repository = "https://github.com/KigHeart/ajentir"
 
 [lints]
 workspace = true
 
 [dependencies]
-rig-agent = { path = "../rig-agent", version = "0.42.0", default-features = false }
-rig-core = { path = "../rig-core", version = "0.42.0", default-features = false }
+rig-agent = { package = "ajentir-agent", path = "../rig-agent", version = "0.42.0", default-features = false  }
+rig-core = { package = "ajentir-core", path = "../rig-core", version = "0.42.0", default-features = false  }
 serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true }
 thiserror = { workspace = true }

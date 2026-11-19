@@ -1,11 +1,11 @@
 [package]
-name = "rig-neo4j"
+name = "ajentir-neo4j"
 version.workspace = true
 edition = { workspace = true }
 license = "MIT"
 readme = "README.md"
 description = "Neo4j implementation of a Rig vector store."
-repository = "https://github.com/0xPlaygrounds/rig"
+repository = "https://github.com/KigHeart/ajentir"
 
 [lints]
 workspace = true
@@ -15,13 +15,13 @@ workspace = true
 [dependencies]
 futures = { workspace = true }
 neo4rs = { workspace = true }
-rig-core = { path = "../rig-core", version = "0.42.0", default-features = false }
+rig-core = { package = "ajentir-core", path = "../rig-core", version = "0.42.0", default-features = false  }
 serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true }
 tracing = { workspace = true }
 
 [dev-dependencies]
-rig-reqwest = { path = "../rig-reqwest", version = "0.42.0" }
+rig-reqwest = { package = "ajentir-reqwest", path = "../rig-reqwest", version = "0.42.0"  }
 anyhow = { workspace = true }
 tokio = { workspace = true, features = ["macros"] }
 textwrap = { workspace = true }

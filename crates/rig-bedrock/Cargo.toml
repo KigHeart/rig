@@ -1,5 +1,5 @@
 [package]
-name = "rig-bedrock"
+name = "ajentir-bedrock"
 version.workspace = true
 edition = { workspace = true }
 license = "MIT"
@@ -20,7 +20,7 @@ futures = { workspace = true }
 rig-core = { path = "../rig-core", version = "0.42.0", default-features = false, features = [
     "image",
 ] }
-rig-derive = { path = "../rig-derive", version = "0.42.0" }
+rig-derive = { package = "ajentir-derive", path = "../rig-derive", version = "0.42.0"  }
 schemars = { workspace = true }
 serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true }

@@ -1,11 +1,11 @@
 [package]
-name = "rig"
+name = "ajentir"
 version.workspace = true
 edition = { workspace = true }
 license = "MIT"
 readme = "README.md"
-description = "An opinionated library for building LLM powered applications."
-repository = "https://github.com/0xPlaygrounds/rig"
+description = "Rust-native agentic systems framework with typed state and durable execution."
+repository = "https://github.com/KigHeart/ajentir"
 # Examples now live in their own packages under `examples/*`; don't auto-discover
 # them as examples of this crate.
 autoexamples = false
@@ -19,6 +19,10 @@ autoexamples = false
 # runtime from `CARGO_MANIFEST_DIR`, never embedded with `include_*!`, so nothing
 # in the package needs them to compile.
 exclude = ["tests/cassettes/**"]
+
+[lib]
+name = "ajentir"
+path = "src/lib.rs"
 
 [package.metadata.docs.rs]
 all-features = true
@@ -109,14 +113,14 @@ edition = "2024"
 # downgrades every direct dependency to its floor and builds the workspace,
 # so a floor that has silently rotted fails there rather than downstream.
 #
-# The `rig` facade is the workspace-root package; examples depend on it via
-# `rig.workspace = true` (add per-example features at the use site).
-rig = { path = ".", version = "0.42.0" }
-rig-agent = { path = "crates/rig-agent", version = "0.42.0" }
-rig-reqwest = { path = "crates/rig-reqwest", version = "0.42.0" }
-rig-rmcp = { path = "crates/rig-rmcp", version = "0.42.0" }
-rig-core = { path = "crates/rig-core", version = "0.42.0" }
-rig-run = { path = "crates/rig-run", version = "0.42.0" }
+# AJENTIR is the public facade. The "rig" dependency key remains a workspace-local
+# compatibility alias for inherited examples during migration.
+rig = { package = "ajentir", path = ".", version = "0.42.0" }
+rig-agent = { package = "ajentir-agent", path = "crates/rig-agent", version = "0.42.0"  }
+rig-reqwest = { package = "ajentir-reqwest", path = "crates/rig-reqwest", version = "0.42.0"  }
+rig-rmcp = { package = "ajentir-rmcp", path = "crates/rig-rmcp", version = "0.42.0"  }
+rig-core = { package = "ajentir-core", path = "crates/rig-core", version = "0.42.0"  }
+rig-run = { package = "ajentir-run", path = "crates/rig-run", version = "0.42.0"  }
 anyhow = "1"
 arrow-array = "58"
 as-any = "0.3"
@@ -240,31 +244,32 @@ exclude-members = ["crates/rig-core", "crates/rig-derive"]
 workspace = true
 
 [dependencies]
-rig-core = { path = "crates/rig-core", version = "0.42.0", default-features = false }
-rig-run = { path = "crates/rig-run", version = "0.42.0" }
-rig-reqwest = { path = "crates/rig-reqwest", version = "0.42.0", optional = true, default-features = false }
-rig-agent = { path = "crates/rig-agent", version = "0.42.0", optional = true, default-features = false }
-rig-rmcp = { path = "crates/rig-rmcp", version = "0.42.0", optional = true }
-rig-bedrock = { path = "crates/rig-bedrock", version = "0.42.0", optional = true, default-features = false }
-rig-candle = { path = "crates/rig-candle", version = "0.42.0", optional = true, default-features = false }
-rig-fastembed = { path = "crates/rig-fastembed", version = "0.42.0", optional = true, default-features = false }
-rig-gemini-grpc = { path = "crates/rig-gemini-grpc", version = "0.42.0", optional = true, default-features = false }
-rig-helixdb = { path = "crates/rig-helixdb", version = "0.42.0", optional = true, default-features = false }
-rig-lancedb = { path = "crates/rig-lancedb", version = "0.42.0", optional = true, default-features = false }
+ajentir-state = { package = "ajentir-state", path = "crates/ajentir", version = "0.42.0" }
+rig-core = { package = "ajentir-core", path = "crates/rig-core", version = "0.42.0", default-features = false  }
+rig-run = { package = "ajentir-run", path = "crates/rig-run", version = "0.42.0"  }
+rig-reqwest = { package = "ajentir-reqwest", path = "crates/rig-reqwest", version = "0.42.0", optional = true, default-features = false  }
+rig-agent = { package = "ajentir-agent", path = "crates/rig-agent", version = "0.42.0", optional = true, default-features = false  }
+rig-rmcp = { package = "ajentir-rmcp", path = "crates/rig-rmcp", version = "0.42.0", optional = true  }
+rig-bedrock = { package = "ajentir-bedrock", path = "crates/rig-bedrock", version = "0.42.0", optional = true, default-features = false  }
+rig-candle = { package = "ajentir-candle", path = "crates/rig-candle", version = "0.42.0", optional = true, default-features = false  }
+rig-fastembed = { package = "ajentir-fastembed", path = "crates/rig-fastembed", version = "0.42.0", optional = true, default-features = false  }
+rig-gemini-grpc = { package = "ajentir-gemini-grpc", path = "crates/rig-gemini-grpc", version = "0.42.0", optional = true, default-features = false  }
+rig-helixdb = { package = "ajentir-helixdb", path = "crates/rig-helixdb", version = "0.42.0", optional = true, default-features = false  }
+rig-lancedb = { package = "ajentir-lancedb", path = "crates/rig-lancedb", version = "0.42.0", optional = true, default-features = false  }
 lancedb = { workspace = true, optional = true }
-rig-memory = { path = "crates/rig-memory", version = "0.42.0", optional = true, default-features = false }
-rig-derive = { path = "crates/rig-derive", version = "0.42.0", optional = true }
-rig-milvus = { path = "crates/rig-milvus", version = "0.42.0", optional = true, default-features = false }
-rig-mongodb = { path = "crates/rig-mongodb", version = "0.42.0", optional = true, default-features = false }
-rig-neo4j = { path = "crates/rig-neo4j", version = "0.42.0", optional = true, default-features = false }
-rig-postgres = { path = "crates/rig-postgres", version = "0.42.0", optional = true, default-features = false }
-rig-qdrant = { path = "crates/rig-qdrant", version = "0.42.0", optional = true, default-features = false }
-rig-s3vectors = { path = "crates/rig-s3vectors", version = "0.42.0", optional = true, default-features = false }
-rig-scylladb = { path = "crates/rig-scylladb", version = "0.42.0", optional = true, default-features = false }
-rig-sqlite = { path = "crates/rig-sqlite", version = "0.42.0", optional = true, default-features = false }
-rig-surrealdb = { path = "crates/rig-surrealdb", version = "0.42.0", optional = true, default-features = false }
-rig-vectorize = { path = "crates/rig-vectorize", version = "0.42.0", optional = true, default-features = false }
-rig-vertexai = { path = "crates/rig-vertexai", version = "0.42.0", optional = true, default-features = false }
+rig-memory = { package = "ajentir-memory", path = "crates/rig-memory", version = "0.42.0", optional = true, default-features = false  }
+rig-derive = { package = "ajentir-derive", path = "crates/rig-derive", version = "0.42.0", optional = true  }
+rig-milvus = { package = "ajentir-milvus", path = "crates/rig-milvus", version = "0.42.0", optional = true, default-features = false  }
+rig-mongodb = { package = "ajentir-mongodb", path = "crates/rig-mongodb", version = "0.42.0", optional = true, default-features = false  }
+rig-neo4j = { package = "ajentir-neo4j", path = "crates/rig-neo4j", version = "0.42.0", optional = true, default-features = false  }
+rig-postgres = { package = "ajentir-postgres", path = "crates/rig-postgres", version = "0.42.0", optional = true, default-features = false  }
+rig-qdrant = { package = "ajentir-qdrant", path = "crates/rig-qdrant", version = "0.42.0", optional = true, default-features = false  }
+rig-s3vectors = { package = "ajentir-s3vectors", path = "crates/rig-s3vectors", version = "0.42.0", optional = true, default-features = false  }
+rig-scylladb = { package = "ajentir-scylladb", path = "crates/rig-scylladb", version = "0.42.0", optional = true, default-features = false  }
+rig-sqlite = { package = "ajentir-sqlite", path = "crates/rig-sqlite", version = "0.42.0", optional = true, default-features = false  }
+rig-surrealdb = { package = "ajentir-surrealdb", path = "crates/rig-surrealdb", version = "0.42.0", optional = true, default-features = false  }
+rig-vectorize = { package = "ajentir-vectorize", path = "crates/rig-vectorize", version = "0.42.0", optional = true, default-features = false  }
+rig-vertexai = { package = "ajentir-vertexai", path = "crates/rig-vertexai", version = "0.42.0", optional = true, default-features = false  }
 
 [dev-dependencies]
 anyhow = { workspace = true }
@@ -276,10 +281,10 @@ aws-sdk-bedrockruntime = { workspace = true }
 aws-smithy-eventstream = { workspace = true }
 aws-smithy-runtime-api = { workspace = true }
 aws-smithy-types = { workspace = true }
-rig-core = { path = "crates/rig-core", version = "0.42.0", default-features = false, features = [
+rig-core = { package = "ajentir-core", path = "crates/rig-core", version = "0.42.0", default-features = false, features = [
   "test-utils",
 ] }
-rig-agent = { path = "crates/rig-agent", version = "0.42.0", default-features = false, features = [
+rig-agent = { package = "ajentir-agent", path = "crates/rig-agent", version = "0.42.0", default-features = false, features = [
   "test-utils",
 ] }
 tokio = { workspace = true, features = ["full"] }

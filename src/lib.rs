@@ -1,9 +1,9 @@
 #![cfg_attr(docsrs, feature(doc_cfg))]
-//! Public facade for Rig.
+//! Public facade for AJENTIR.
 //!
-//! The `rig` crate is the user-facing entry point for Rig. It re-exports the
-//! portable contracts from `rig_core` at their familiar `rig::...` paths and the
-//! classic runtime from `rig_agent` under `rig::agent`.
+//! The `ajentir` crate is the user-facing entry point for AJENTIR. It re-exports
+//! portable contracts and inherited provider/runtime adapters through one
+//! stable AJENTIR-facing facade.
 //!
 //! `rig::tool` keeps the classic contextual tool API (`Tool`, `ToolContext`,
 //! …) with the default `agent` feature — the same surface as before the runtime
@@ -25,7 +25,7 @@
 //! rig = { version = "*", features = ["lancedb", "fastembed"] }
 //! ```
 //!
-//! This enables modules such as `rig::lancedb` and `rig::fastembed`. Other
+//! This enables modules such as `ajentir::lancedb` and `ajentir::fastembed`. Other
 //! companion integrations follow the same pattern, with feature names aligned to
 //! their facade module paths wherever Rust module naming allows it.
 //!
@@ -35,6 +35,9 @@
 //! implementation crate, including provider abstractions, built-in core
 //! providers, tools, memory traits, and vector-store traits, without the root
 //! facade's companion integration feature surface.
+
+/// Typed state, reducers, and durable checkpoint contracts.
+pub use ajentir_state as state;
 
 pub use rig_core::*;
 
