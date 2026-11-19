@@ -254,29 +254,11 @@ impl Checkpointer for SqliteCheckpointer {
             .lock()
             .map_err(|_| CheckpointError::StorageUnavailable)?;
 
-        let existing = connection
-            .query_row(
-                "SELECT payload FROM ajentir_checkpoints
-                 WHERE run_id = ?1 AND checkpoint_id = ?2",
-                params![checkpoint.run_id, checkpoint.checkpoint_id],
-                |row| row.get::<_, String>(0),
-            )
-            .optional()
-            .map_err(|error| CheckpointError::Database(error.to_string()))?;
-
-        if let Some(existing_payload) = existing {
-            return if existing_payload == payload {
-                Ok(())
-            } else {
-                Err(CheckpointError::CheckpointConflict)
-            };
-        }
-
         let super_step = i64::try_from(checkpoint.super_step)
-            .map_err(|_| CheckpointError::InvalidIdentifier)?;
-        connection
+            .map_err(|_| CheckpointError::SuperStepOutOfRange)?;
+        let inserted = connection
             .execute(
-                "INSERT INTO ajentir_checkpoints
+                "INSERT OR IGNORE INTO ajentir_checkpoints
                  (run_id, checkpoint_id, super_step, payload)
                  VALUES (?1, ?2, ?3, ?4)",
                 params![
@@ -287,7 +269,26 @@ impl Checkpointer for SqliteCheckpointer {
                 ],
             )
             .map_err(|error| CheckpointError::Database(error.to_string()))?;
-        Ok(())
+
+        if inserted == 1 {
+            return Ok(());
+        }
+
+        let existing_payload = connection
+            .query_row(
+                "SELECT payload FROM ajentir_checkpoints
+                 WHERE run_id = ?1 AND checkpoint_id = ?2",
+                params![checkpoint.run_id, checkpoint.checkpoint_id],
+                |row| row.get::<_, String>(0),
+            )
+            .optional()
+            .map_err(|error| CheckpointError::Database(error.to_string()))?
+            .ok_or(CheckpointError::CheckpointConflict)?;
+        if existing_payload == payload {
+            Ok(())
+        } else {
+            Err(CheckpointError::CheckpointConflict)
+        }
     }
 
     fn load(&self, run_id: &str, checkpoint_id: &str) -> Result<Checkpoint, CheckpointError> {
@@ -334,6 +335,8 @@ pub enum CheckpointError {
     Database(String),
     #[error("checkpoint serialization error: {0}")]
     Serialization(String),
+    #[error("super-step counter exceeds SQLite's signed integer range")]
+    SuperStepOutOfRange,
     #[error(transparent)]
     State(#[from] StateError),
 }
