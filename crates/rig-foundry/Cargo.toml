@@ -3,7 +3,7 @@ name = "rig-foundry"
 version.workspace = true
 edition.workspace = true
 license = "MIT"
-description = "Durable agent state and checkpoint primitives for AJENTIR* on Rig."
+description = "Agent Foundry identity and manifest primitives built on Rig."
 repository = "https://github.com/KigHeart/rig"
 
 [lints]
@@ -17,4 +17,3 @@ serde_json = { workspace = true }
 semver = { workspace = true }
 sha2 = { workspace = true }
 thiserror = { workspace = true }
-rusqlite = { workspace = true, features = ["bundled"] }
