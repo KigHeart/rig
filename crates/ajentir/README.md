@@ -9,8 +9,8 @@ adding explicit state and recovery semantics around agent execution.
 
 ## Current implementation
 
-- **Channel schemas:** versioned channel definitions select a reducer, with compile-time 
-  `TypedChannel<T>` handles for Rust-typed reads and writes. Values are serialized 
+- **Channel schemas:** versioned channel definitions select a reducer, with compile-time
+  `TypedChannel<T>` handles for Rust-typed reads and writes. Values are serialized
   into the checkpoint format and decoded through Serde.
 - **Reducers:** `LastWriteWins`, `AppendList`, `AppendMessages`, `MergeMap`,
   and `MaxByTimestamp`.
@@ -89,7 +89,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         checkpoint_id: "checkpoint-0001".to_owned(),
         run_id: "run-0001".to_owned(),
         parent_run_id: None,
-    parent_checkpoint_id: None,
+        parent_checkpoint_id: None,
         state_schema_version: 1,
         super_step: 0,
         state,
