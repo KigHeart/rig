@@ -40,7 +40,7 @@ impl Frontier {
         is_next: bool,
     ) -> Result<Self, CheckpointError> {
         let mut nodes = nodes.into_iter().collect::<Vec<_>>();
-        if nodes.iter().any(String::is_empty) {
+        if nodes.iter().any(|node| !valid_identifier(node)) {
             return Err(CheckpointError::InvalidFrontier);
         }
         nodes.sort();
@@ -76,7 +76,7 @@ impl Frontier {
             Self::Complete => return Ok(()),
         };
         if nodes.is_empty()
-            || nodes.iter().any(String::is_empty)
+            || nodes.iter().any(|node| !valid_identifier(node))
             || nodes.windows(2).any(|pair| pair.first() >= pair.get(1))
         {
             return Err(CheckpointError::InvalidFrontier);
@@ -91,6 +91,7 @@ impl Frontier {
 pub struct Checkpoint {
     pub checkpoint_id: String,
     pub run_id: String,
+    pub parent_run_id: Option<String>,
     pub parent_checkpoint_id: Option<String>,
     pub state_schema_version: u32,
     pub super_step: u64,
@@ -101,7 +102,7 @@ pub struct Checkpoint {
 impl Checkpoint {
     /// Validate identifiers, schema compatibility and frontier canonical form.
     pub fn validate(&self) -> Result<(), CheckpointError> {
-        if self.checkpoint_id.is_empty() || self.run_id.is_empty() {
+        if !valid_identifier(&self.checkpoint_id) || !valid_identifier(&self.run_id) {
             return Err(CheckpointError::InvalidIdentifier);
         }
         if self.state_schema_version == 0
@@ -109,12 +110,11 @@ impl Checkpoint {
         {
             return Err(CheckpointError::SchemaVersionMismatch);
         }
-        if self
-            .parent_checkpoint_id
-            .as_ref()
-            .is_some_and(String::is_empty)
-        {
-            return Err(CheckpointError::InvalidIdentifier);
+        match (&self.parent_run_id, &self.parent_checkpoint_id) {
+            (Some(run_id), Some(checkpoint_id))
+                if valid_identifier(run_id) && valid_identifier(checkpoint_id) => {}
+            (None, None) => {}
+            _ => return Err(CheckpointError::InvalidParentReference),
         }
         self.state.validate()?;
         self.frontier.validate()
@@ -137,6 +137,7 @@ impl Checkpoint {
         let fork = Self {
             checkpoint_id: new_checkpoint_id.into(),
             run_id: new_run_id.into(),
+            parent_run_id: Some(self.run_id.clone()),
             parent_checkpoint_id: Some(self.checkpoint_id.clone()),
             state_schema_version: self.state_schema_version,
             super_step: self.super_step,
@@ -316,11 +317,20 @@ impl Checkpointer for SqliteCheckpointer {
     }
 }
 
+fn valid_identifier(value: &str) -> bool {
+    !value.is_empty()
+        && value.len() <= 256
+        && value.trim() == value
+        && !value.chars().any(char::is_control)
+}
+
 /// Errors raised by checkpoint validation or persistence.
 #[derive(Clone, Debug, PartialEq, Eq, Error)]
 pub enum CheckpointError {
-    #[error("checkpoint identifier or run identifier is empty")]
+    #[error("checkpoint or run identifier is invalid")]
     InvalidIdentifier,
+    #[error("parent run and checkpoint identifiers must be present together and valid")]
+    InvalidParentReference,
     #[error("checkpoint state schema version does not match the state")]
     SchemaVersionMismatch,
     #[error("checkpoint frontier is empty, duplicated, or not canonical")]
@@ -362,6 +372,7 @@ mod tests {
             Err(_) => return Checkpoint {
                 checkpoint_id: "cp-1".to_owned(),
                 run_id: "run-1".to_owned(),
+                parent_run_id: None,
                 parent_checkpoint_id: None,
                 state_schema_version: 1,
                 super_step: 0,
@@ -375,6 +386,7 @@ mod tests {
         Checkpoint {
             checkpoint_id: "cp-1".to_owned(),
             run_id: "run-1".to_owned(),
+            parent_run_id: None,
             parent_checkpoint_id: None,
             state_schema_version: 1,
             super_step: 4,
@@ -453,6 +465,7 @@ mod tests {
         assert!(fork.is_ok());
         if let Ok(fork) = fork {
             assert_eq!(fork.run_id, "run-2");
+            assert_eq!(fork.parent_run_id.as_deref(), Some("run-1"));
             assert_eq!(fork.parent_checkpoint_id.as_deref(), Some("cp-1"));
             assert_eq!(
                 fork.state.get("messages"),
