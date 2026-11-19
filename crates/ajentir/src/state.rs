@@ -4,8 +4,10 @@
 //! valid and committed, or the state remains unchanged. Channel and update
 //! iteration use BTreeMap ordering so reducer application is reproducible.
 
+use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
+use std::marker::PhantomData;
 use thiserror::Error;
 
 /// Reducer selected by the state schema for a channel.
@@ -30,6 +32,49 @@ pub enum ChannelReducer {
 pub struct NodeUpdate {
     pub node_id: String,
     pub channels: BTreeMap<String, serde_json::Value>,
+}
+
+/// Compile-time typed handle for a channel in a heterogeneous run state.
+///
+/// Values are serialized into the checkpoint's JSON representation, while
+/// this handle constrains reads and writes to the caller's Rust type.
+pub struct TypedChannel<T> {
+    name: String,
+    reducer: ChannelReducer,
+    marker: PhantomData<fn() -> T>,
+}
+
+impl<T> TypedChannel<T> {
+    /// Declare a typed channel handle.
+    pub fn new(
+        name: impl Into<String>,
+        reducer: ChannelReducer,
+    ) -> Result<Self, StateError> {
+        let name = name.into();
+        validate_channel_name(&name)?;
+        Ok(Self {
+            name,
+            reducer,
+            marker: PhantomData,
+        })
+    }
+
+    /// Stable channel name used in the serialized state schema.
+    pub fn name(&self) -> &str {
+        &self.name
+    }
+
+    /// Reducer required by this typed handle.
+    pub fn reducer(&self) -> ChannelReducer {
+        self.reducer
+    }
+
+    /// Build the corresponding schema declaration.
+    pub fn definition(&self) -> ChannelDefinition {
+        ChannelDefinition {
+            reducer: self.reducer,
+        }
+    }
 }
 
 /// Schema declaration for one state channel.
@@ -116,6 +161,41 @@ impl ChannelState {
         self.values.get(name)
     }
 
+    /// Read a channel through its compile-time typed handle.
+    pub fn get_typed<T: DeserializeOwned>(
+        &self,
+        channel: &TypedChannel<T>,
+    ) -> Result<Option<T>, StateError> {
+        let definition = self.schema.definition(channel.name())?;
+        if definition.reducer != channel.reducer() {
+            return Err(StateError::ReducerMismatch(channel.name().to_owned()));
+        }
+        self.get(channel.name())
+            .cloned()
+            .map(|value| {
+                serde_json::from_value(value)
+                    .map_err(|error| StateError::Serialization(error.to_string()))
+            })
+            .transpose()
+    }
+
+    /// Apply a typed value through its compile-time typed channel handle.
+    pub fn apply_typed_update<T: Serialize>(
+        &mut self,
+        channel: &TypedChannel<T>,
+        value: T,
+    ) -> Result<(), StateError> {
+        let definition = self.schema.definition(channel.name())?;
+        if definition.reducer != channel.reducer() {
+            return Err(StateError::ReducerMismatch(channel.name().to_owned()));
+        }
+        let value = serde_json::to_value(value)
+            .map_err(|error| StateError::Serialization(error.to_string()))?;
+        let mut updates = BTreeMap::new();
+        updates.insert(channel.name().to_owned(), value);
+        self.apply_updates(updates)
+    }
+
     /// Read all populated channel values.
     pub fn values(&self) -> &BTreeMap<String, serde_json::Value> {
         &self.values
@@ -194,6 +274,10 @@ pub enum StateError {
     TimestampConflict(String),
     #[error("a node may contribute only one update per super-step")]
     DuplicateNodeUpdate,
+    #[error("typed channel reducer does not match the state schema for {0}")]
+    ReducerMismatch(String),
+    #[error("channel value serialization failed: {0}")]
+    Serialization(String),
 }
 
 fn validate_node_id(name: &str) -> Result<(), StateError> {
@@ -336,6 +420,59 @@ mod tests {
         let mut updates = BTreeMap::new();
         updates.insert("data".to_owned(), value);
         updates
+    }
+
+
+    #[test]
+    fn typed_channel_round_trips_rust_values() {
+        #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+        struct Message {
+            text: String,
+        }
+
+        let channel = TypedChannel::<Vec<Message>>::new(
+            "messages",
+            ChannelReducer::AppendMessages,
+        );
+        assert!(channel.is_ok());
+        if let Ok(channel) = channel {
+            let mut channels = BTreeMap::new();
+            channels.insert(channel.name().to_owned(), channel.definition());
+            let schema = ChannelSchema::new(1, channels);
+            assert!(schema.is_ok());
+            if let Ok(schema) = schema {
+                let mut state = ChannelState::new(schema);
+                let message = Message {
+                    text: "durable".to_owned(),
+                };
+                assert!(state
+                    .apply_typed_update(&channel, vec![message.clone()])
+                    .is_ok());
+                assert_eq!(state.get_typed(&channel), Ok(Some(vec![message])));
+            }
+        }
+    }
+
+    #[test]
+    fn typed_channel_rejects_reducer_mismatch() {
+        let typed = TypedChannel::<Vec<String>>::new("data", ChannelReducer::AppendMessages);
+        let schema = ChannelSchema::new(
+            1,
+            BTreeMap::from([(
+                "data".to_owned(),
+                ChannelDefinition {
+                    reducer: ChannelReducer::AppendList,
+                },
+            )]),
+        );
+        assert!(typed.is_ok() && schema.is_ok());
+        if let (Ok(typed), Ok(schema)) = (typed, schema) {
+            let mut state = ChannelState::new(schema);
+            assert_eq!(
+                state.apply_typed_update(&typed, vec!["x".to_owned()]),
+                Err(StateError::ReducerMismatch("data".to_owned()))
+            );
+        }
     }
 
     #[test]
