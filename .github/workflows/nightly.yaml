@@ -129,7 +129,7 @@ jobs:
     # This also covers the `workflow_call` path, where `github.repository` is
     # still the caller's repo — a fork's own cd.yaml skips this job and, with
     # it, its release-plz step, which is the correct outcome on a fork.
-    if: github.repository == '0xPlaygrounds/rig'
+    if: github.repository == 'KigHeart/ajentir'
     steps:
       - name: Checkout
         uses: actions/checkout@v5
@@ -176,7 +176,7 @@ jobs:
   dependency-floors:
     name: stable / dependency floors
     runs-on: ubuntu-latest
-    if: github.repository == '0xPlaygrounds/rig'
+    if: github.repository == 'KigHeart/ajentir'
     steps:
       - name: Checkout
         uses: actions/checkout@v5
