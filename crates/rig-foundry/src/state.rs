@@ -40,21 +40,28 @@ pub struct ChannelSchema {
 }
 
 impl ChannelSchema {
+    /// Validate a schema, including schemas reconstructed from persisted data.
+    pub fn validate(&self) -> Result<(), StateError> {
+        if self.version == 0 {
+            return Err(StateError::InvalidSchemaVersion);
+        }
+        if self.channels.is_empty() {
+            return Err(StateError::EmptySchema);
+        }
+        for name in self.channels.keys() {
+            validate_channel_name(name)?;
+        }
+        Ok(())
+    }
+
     /// Construct a schema from a map of channel names to reducer definitions.
     pub fn new(
         version: u32,
         channels: BTreeMap<String, ChannelDefinition>,
     ) -> Result<Self, StateError> {
-        if version == 0 {
-            return Err(StateError::InvalidSchemaVersion);
-        }
-        if channels.is_empty() {
-            return Err(StateError::EmptySchema);
-        }
-        for name in channels.keys() {
-            validate_channel_name(name)?;
-        }
-        Ok(Self { version, channels })
+        let schema = Self { version, channels };
+        schema.validate()?;
+        Ok(schema)
     }
 
     fn definition(&self, name: &str) -> Result<&ChannelDefinition, StateError> {
@@ -79,6 +86,16 @@ impl ChannelState {
             schema,
             values: BTreeMap::new(),
         }
+    }
+
+    /// Validate the complete state after deserialization or before persistence.
+    pub fn validate(&self) -> Result<(), StateError> {
+        self.schema.validate()?;
+        for (name, value) in &self.values {
+            let definition = self.schema.definition(name)?;
+            validate_value_shape(name, definition.reducer, value)?;
+        }
+        Ok(())
     }
 
     /// Return the schema used to validate and reduce this state.
@@ -180,7 +197,8 @@ fn validate_value_shape(
         ChannelReducer::MaxByTimestamp => value
             .as_object()
             .and_then(|object| object.get("timestamp"))
-            .is_some_and(serde_json::Value::is_number),
+            .and_then(timestamp_as_i128)
+            .is_some(),
         ChannelReducer::LastWriteWins => true,
     };
 
