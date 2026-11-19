@@ -4,8 +4,8 @@ version.workspace = true
 edition = { workspace = true }
 license = "MIT"
 readme = "README.md"
-description = "An opinionated library for building LLM powered applications."
-repository = "https://github.com/0xPlaygrounds/rig"
+description = "Rust-native agentic systems framework with typed state and durable execution."
+repository = "https://github.com/KigHeart/ajentir"
 # Examples now live in their own packages under `examples/*`; don't auto-discover
 # them as examples of this crate.
 autoexamples = false
