@@ -132,11 +132,19 @@ impl Checkpoint {
         value: serde_json::Value,
     ) -> Result<Self, CheckpointError> {
         self.validate()?;
+        let new_run_id = new_run_id.into();
+        let new_checkpoint_id = new_checkpoint_id.into();
+        if !valid_identifier(&new_run_id)
+            || !valid_identifier(&new_checkpoint_id)
+            || new_run_id == self.run_id
+        {
+            return Err(CheckpointError::InvalidForkIdentity);
+        }
         let mut state = self.state.clone();
         state.set_for_fork(channel, value)?;
         let fork = Self {
-            checkpoint_id: new_checkpoint_id.into(),
-            run_id: new_run_id.into(),
+            checkpoint_id: new_checkpoint_id,
+            run_id: new_run_id,
             parent_run_id: Some(self.run_id.clone()),
             parent_checkpoint_id: Some(self.checkpoint_id.clone()),
             state_schema_version: self.state_schema_version,
@@ -331,6 +339,8 @@ pub enum CheckpointError {
     InvalidIdentifier,
     #[error("parent run and checkpoint identifiers must be present together and valid")]
     InvalidParentReference,
+    #[error("a fork must use a new, valid run identity")]
+    InvalidForkIdentity,
     #[error("checkpoint state schema version does not match the state")]
     SchemaVersionMismatch,
     #[error("checkpoint frontier is empty, duplicated, or not canonical")]
@@ -473,6 +483,31 @@ mod tests {
             );
             assert!(original.state.get("messages").is_none());
         }
+    }
+
+
+    #[test]
+    fn fork_requires_a_new_run_identity() {
+        let original = checkpoint(Frontier::Complete);
+        assert_eq!(
+            original.fork_with_edit(
+                "run-1",
+                "cp-2",
+                "messages",
+                serde_json::json!([]),
+            ),
+            Err(CheckpointError::InvalidForkIdentity)
+        );
+    }
+
+    #[test]
+    fn checkpoint_rejects_unpaired_parent_identity() {
+        let mut value = checkpoint(Frontier::Complete);
+        value.parent_run_id = Some("parent-run".to_owned());
+        assert_eq!(
+            value.validate(),
+            Err(CheckpointError::InvalidParentReference)
+        );
     }
 
     #[test]
