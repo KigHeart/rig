@@ -58,7 +58,7 @@ multi-host worker lock.
 
 ```rust
 use ajentir::{
-    ChannelDefinition, ChannelReducer, ChannelSchema, ChannelState, Checkpointer, Frontier,
+    ChannelReducer, ChannelSchema, ChannelState, Checkpointer, Frontier,
     SqliteCheckpointer, TypedChannel,
 };
 use serde::{Deserialize, Serialize};
