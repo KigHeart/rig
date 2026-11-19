@@ -370,7 +370,9 @@ mod tests {
     #[test]
     fn max_by_timestamp_rejects_ambiguous_ties() {
         let mut state = state_with(ChannelReducer::MaxByTimestamp);
-        assert!(state.apply_updates(update(serde_json::json!({"timestamp": 10, "value": "a"}))).is_ok());
+        assert!(state
+            .apply_updates(update(serde_json::json!({"timestamp": 10, "value": "a"})))
+            .is_ok());
         assert_eq!(
             state.apply_updates(update(serde_json::json!({"timestamp": 10, "value": "b"}))),
             Err(StateError::TimestampConflict("data".to_owned()))
@@ -380,7 +382,12 @@ mod tests {
     #[test]
     fn invalid_batch_does_not_partially_mutate_state() {
         let mut channels = BTreeMap::new();
-        channels.insert("a".to_owned(), ChannelDefinition { reducer: ChannelReducer::LastWriteWins });
+        channels.insert(
+            "a".to_owned(),
+            ChannelDefinition {
+                reducer: ChannelReducer::LastWriteWins,
+            },
+        );
         channels.insert("b".to_owned(), ChannelDefinition { reducer: ChannelReducer::AppendList });
         let schema = ChannelSchema::new(1, channels);
         assert!(schema.is_ok());
