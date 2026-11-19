@@ -56,30 +56,32 @@ multi-host worker lock.
 
 ```rust
 use rig_foundry::{
-    ChannelDefinition, ChannelReducer, ChannelSchema, ChannelState,
-    Checkpointer, Frontier, SqliteCheckpointer,
+    ChannelDefinition, ChannelReducer, ChannelSchema, ChannelState, Checkpointer, Frontier,
+    SqliteCheckpointer,
 };
 use std::collections::BTreeMap;
 
-let mut channels = BTreeMap::new();
-channels.insert(
-    "messages".to_owned(),
-    ChannelDefinition {
-        reducer: ChannelReducer::AppendMessages,
-    },
-);
-let schema = ChannelSchema::new(1, channels)?;
-let state = ChannelState::new(schema);
-let checkpoint = rig_foundry::Checkpoint {
-    checkpoint_id: "checkpoint-0001".to_owned(),
-    run_id: "run-0001".to_owned(),
-    parent_checkpoint_id: None,
-    state_schema_version: 1,
-    super_step: 0,
-    state,
-    frontier: Frontier::next(vec!["analyst".to_owned()])?,
-};
-let store = SqliteCheckpointer::open("ajentir.sqlite")?;
-store.save(checkpoint)?;
-Ok::<(), Box<dyn std::error::Error>>(())
+fn main() -> Result<(), Box<dyn std::error::Error>> {
+    let mut channels = BTreeMap::new();
+    channels.insert(
+        "messages".to_owned(),
+        ChannelDefinition {
+            reducer: ChannelReducer::AppendMessages,
+        },
+    );
+    let schema = ChannelSchema::new(1, channels)?;
+    let state = ChannelState::new(schema);
+    let checkpoint = rig_foundry::Checkpoint {
+        checkpoint_id: "checkpoint-0001".to_owned(),
+        run_id: "run-0001".to_owned(),
+        parent_checkpoint_id: None,
+        state_schema_version: 1,
+        super_step: 0,
+        state,
+        frontier: Frontier::next(vec!["analyst".to_owned()])?,
+    };
+    let store = SqliteCheckpointer::open("ajentir.sqlite")?;
+    store.save(checkpoint)?;
+    Ok(())
+}
 ```
