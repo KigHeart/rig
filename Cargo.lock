@@ -337,6 +337,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "ajentir"
+version = "0.42.0"
+dependencies = [
+ "rig-agent",
+ "rig-core",
+ "rusqlite",
+ "serde",
+ "serde_json",
+ "thiserror 2.0.18",
+]
+
+[[package]]
 name = "aligned"
 version = "0.4.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"

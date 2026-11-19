@@ -51,6 +51,7 @@ default-members = [
     "crates/rig-core",
     "crates/rig-run",
     "crates/rig-agent",
+    "crates/ajentir",
     "crates/rig-foundry",
     "crates/rig-reqwest",
     "crates/rig-bedrock",
