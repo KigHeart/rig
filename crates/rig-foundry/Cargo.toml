@@ -3,7 +3,7 @@ name = "rig-foundry"
 version.workspace = true
 edition.workspace = true
 license = "MIT"
-description = "Agent Foundry identity and manifest primitives built on Rig."
+description = "Durable agent state and checkpoint primitives for AJENTIR* on Rig."
 repository = "https://github.com/KigHeart/rig"
 
 [lints]
