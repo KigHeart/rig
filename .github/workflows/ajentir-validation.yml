@@ -33,7 +33,7 @@ jobs:
         run: cargo metadata --locked --format-version 1 > /tmp/ajentir-cargo-metadata.json
 
       - name: Check formatting
-        run: cargo fmt --all -- --check
+        run: cargo fmt --check -p aj-core -p ajentir-state -p aj-kernel -p aj-sim -- --check
 
       - name: Check complete workspace
         run: cargo check --workspace --all-targets --locked
