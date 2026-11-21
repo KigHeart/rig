@@ -8,7 +8,7 @@ The asterisk marks an evolving engineering hypothesis. The v0.2 architecture is 
 
 ## Architecture baseline
 
-**The normative design baseline is [AJENTIR v0.2](docs/architecture/ajentir_v02.pdf).** Its repository companion is [AJENTIR v0.2 — Architecture Baseline](docs/architecture/AJENTIR-V0.2-BASELINE.md).
+**The normative design baseline is the user-supplied AJENTIR v0.2 PDF (27 pages, dated 21 November 2026).** Its repository implementation companion is [AJENTIR v0.2 — Architecture Baseline](docs/architecture/AJENTIR-V0.2-BASELINE.md). The PDF binary is not yet in this branch because the browser upload flow could not access the ChatGPT attachment; this is explicitly recorded in the pull request.
 
 The core architectural decisions are:
 
