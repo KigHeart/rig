@@ -13,7 +13,7 @@ The asterisk marks an evolving engineering hypothesis. The v0.2 architecture is 
 The core architectural decisions are:
 
 - One bulk-synchronous-parallel (BSP) kernel. Simple agent/tool loops and graph workflows are front-ends to the same kernel, not separate execution engines.
-- Typed state channels with reducer laws, immutable per-node admitted views, and deterministic merge by node ID.
+- Typed state channels with explicit two-sided identities and associative reducers; non-commutative contributions fold in canonical node-ID order.
 - Task-level write records and journaled model responses/effects, in addition to checkpoints.
 - Compare-and-swap checkpoint commits with lease epochs and fencing.
 - Explicit effect classes, idempotency keys and durable intent-before-execution for non-Pure effects.
@@ -33,11 +33,12 @@ AJENTIR can execute multi-agent workflows: nodes may be model agents, tools, det
 | T3 | `aj-control`, `aj-telemetry` |
 | T4 | `aj-sim`, `aj-eval` |
 
-The v0.2 topology is a target, not a statement that all packages already exist. The P0 implementation now introduces `aj-core`, `aj-kernel`, and `aj-sim`, and builds on the existing `ajentir-state` package. The state package's current reducer API still requires a law-focused redesign before the full P0 reducer-law acceptance gate can be claimed complete.
+The v0.2 topology is a target, not a statement that all packages already exist. The P0 implementation now introduces `aj-core`, `aj-kernel`, and `aj-sim`, and builds on the existing `ajentir-state` package. The built-in reducer API now exposes an explicit absent-value identity and associative combine operation. Reducer-law tests cover identity and associativity; the P0 gate still requires green CI and broader generated/property-based coverage.
 
 ## P0 implementation slice
 
 - `aj-core`: validated run/thread/node/checkpoint identifiers and logical super-step type.
+- `ajentir-state`: optional identity and associative combine contracts for every built-in reducer; equal `MaxByTimestamp` ties use a deterministic canonical-JSON ordering.
 - `aj-kernel`: frozen-frontier validation, complete-result validation, canonical node-ID write merge, atomic candidate-state publication, and deterministic successor-frontier construction.
 - `aj-sim`: bounded exhaustive completion-order permutation checks.
 
