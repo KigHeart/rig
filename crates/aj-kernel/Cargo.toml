@@ -1,0 +1,15 @@
+[package]
+name = "aj-kernel"
+version.workspace = true
+edition.workspace = true
+license = "MIT"
+description = "In-memory bulk-synchronous-parallel execution kernel for AJENTIR."
+repository = "https://github.com/KigHeart/ajentir"
+
+[lints]
+workspace = true
+
+[dependencies]
+aj-core = { path = "../aj-core", version = "0.42.0" }
+ajentir-state = { path = "../ajentir", version = "0.42.0" }
+thiserror = { workspace = true }
