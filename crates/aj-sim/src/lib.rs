@@ -102,19 +102,24 @@ mod tests {
     }
     #[test]
     fn all_six_completion_orders_produce_one_committed_state() {
-        let (Some(state), Some(a), Some(b), Some(c), Some(ra), Some(rb), Some(rc)) = (
+        let values = (
             sample_state(), NodeId::new("a").ok(), NodeId::new("b").ok(), NodeId::new("c").ok(),
             result("a", "A"), result("b", "B"), result("c", "C")
-        ) else { return; };
+        );
+        assert!(
+            values.0.is_some() && values.1.is_some() && values.2.is_some() && values.3.is_some()
+                && values.4.is_some() && values.5.is_some() && values.6.is_some()
+        );
+        let (Some(state), Some(a), Some(b), Some(c), Some(ra), Some(rb), Some(rc)) = values else { return; };
         let frontier = vec![a, b, c];
         let results = vec![ra, rb, rc];
         assert_eq!(verify_completion_order_invariance(&state, SuperStep(0), &frontier, &results, 6), Ok(6));
     }
     #[test]
     fn permutation_guard_rejects_unbounded_work() {
-        let (Some(state), Some(a), Some(ra), Some(rb), Some(rc)) = (
-            sample_state(), NodeId::new("a").ok(), result("a", "A"), result("b", "B"), result("c", "C")
-        ) else { return; };
+        let values = (sample_state(), NodeId::new("a").ok(), result("a", "A"), result("b", "B"), result("c", "C"));
+        assert!(values.0.is_some() && values.1.is_some() && values.2.is_some() && values.3.is_some() && values.4.is_some());
+        let (Some(state), Some(a), Some(ra), Some(rb), Some(rc)) = values else { return; };
         let frontier = vec![a];
         let results = vec![ra, rb, rc];
         assert!(matches!(
