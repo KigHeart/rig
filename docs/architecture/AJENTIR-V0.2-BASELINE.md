@@ -2,7 +2,7 @@
 
 **Status:** normative design baseline for implementation planning  
 **Source:** Kiprop Yego, *AJENTIR*: Runtime Architecture and Comparative Runtime Analysis, Version 0.2, 21 November 2026  
-**Source document:** [ajentir_v02.pdf](./ajentir_v02.pdf)
+**Source document:** the user-supplied 27-page PDF, `ajentir_v02.pdf` (repository binary upload is pending; see the pull request notes).
 
 This document translates the v0.2 design into repository-level implementation boundaries. It does not claim that the design is implemented or experimentally validated. The source document remains authoritative where this summary is abbreviated.
 
