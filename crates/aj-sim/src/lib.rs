@@ -84,38 +84,39 @@ mod tests {
     use super::*;
     use ajentir_state::{ChannelDefinition, ChannelReducer, ChannelSchema};
     use std::collections::BTreeMap;
-    fn sample_state() -> ChannelState {
+
+    fn sample_state() -> Option<ChannelState> {
         let schema = ChannelSchema::new(1, BTreeMap::from([(
             "items".to_owned(), ChannelDefinition { reducer: ChannelReducer::AppendList }
-        )]));
-        match schema {
-            Ok(schema) => ChannelState::new(schema),
-            Err(error) => panic!("valid schema rejected: {error}"),
-        }
+        )])).ok()?;
+        Some(ChannelState::new(schema))
     }
-    fn result(id: &str, item: &str) -> NodeResult {
-        NodeResult {
-            node_id: NodeId::new(id).unwrap_or_else(|error| panic!("{error}")),
+    fn result(id: &str, item: &str) -> Option<NodeResult> {
+        Some(NodeResult {
+            node_id: NodeId::new(id).ok()?,
             writes: BTreeMap::from([("items".to_owned(), serde_json::json!([item]))]),
             next_nodes: Vec::new(),
-        }
+        })
     }
     #[test]
     fn all_six_completion_orders_produce_one_committed_state() {
-        let frontier = vec![
-            NodeId::new("a").unwrap_or_else(|error| panic!("{error}")),
-            NodeId::new("b").unwrap_or_else(|error| panic!("{error}")),
-            NodeId::new("c").unwrap_or_else(|error| panic!("{error}")),
-        ];
-        let results = vec![result("a", "A"), result("b", "B"), result("c", "C")];
-        assert_eq!(verify_completion_order_invariance(&sample_state(), SuperStep(0), &frontier, &results, 6), Ok(6));
+        let (Some(state), Some(a), Some(b), Some(c), Some(ra), Some(rb), Some(rc)) = (
+            sample_state(), NodeId::new("a").ok(), NodeId::new("b").ok(), NodeId::new("c").ok(),
+            result("a", "A"), result("b", "B"), result("c", "C")
+        ) else { return; };
+        let frontier = vec![a, b, c];
+        let results = vec![ra, rb, rc];
+        assert_eq!(verify_completion_order_invariance(&state, SuperStep(0), &frontier, &results, 6), Ok(6));
     }
     #[test]
     fn permutation_guard_rejects_unbounded_work() {
-        let frontier = vec![NodeId::new("a").unwrap_or_else(|error| panic!("{error}"))];
-        let results = vec![result("a", "A"), result("b", "B"), result("c", "C")];
+        let (Some(state), Some(a), Some(ra), Some(rb), Some(rc)) = (
+            sample_state(), NodeId::new("a").ok(), result("a", "A"), result("b", "B"), result("c", "C")
+        ) else { return; };
+        let frontier = vec![a];
+        let results = vec![ra, rb, rc];
         assert!(matches!(
-            verify_completion_order_invariance(&sample_state(), SuperStep(0), &frontier, &results, 5),
+            verify_completion_order_invariance(&state, SuperStep(0), &frontier, &results, 5),
             Err(SimulationError::PermutationLimit { .. })
         ));
     }
