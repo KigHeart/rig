@@ -8,7 +8,7 @@ The asterisk marks an evolving engineering hypothesis. The v0.2 architecture is 
 
 ## Architecture baseline
 
-**The normative design baseline is the user-supplied AJENTIR v0.2 PDF (27 pages, dated 21 November 2026).** Its repository implementation companion is [AJENTIR v0.2 — Architecture Baseline](docs/architecture/AJENTIR-V0.2-BASELINE.md). The PDF binary is not yet in this branch because the browser upload flow could not access the ChatGPT attachment; this is explicitly recorded in the pull request.
+**The normative design baseline is the user-supplied AJENTIR v0.2 PDF (27 pages, dated 21 November 2026).** Its repository implementation companion is [AJENTIR v0.2 — Architecture Baseline](docs/architecture/AJENTIR-V0.2-BASELINE.md). The original PDF is retained at [docs/architecture/ajentir_v02.pdf](docs/architecture/ajentir_v02.pdf).
 
 The core architectural decisions are:
 
@@ -25,8 +25,6 @@ AJENTIR can execute multi-agent workflows: nodes may be model agents, tools, det
 
 ## Target crate topology
 
-The v0.2 target tiers are:
-
 | Tier | Crates |
 |---|---|
 | T0 | `aj-core` |
@@ -35,18 +33,24 @@ The v0.2 target tiers are:
 | T3 | `aj-control`, `aj-telemetry` |
 | T4 | `aj-sim`, `aj-eval` |
 
-This is a target architecture, not a statement that these packages all exist today. The repository currently has a Rig-derived provider/tool foundation and an early AJENTIR state/checkpoint package. Package names, paths and dependency edges must be migrated deliberately, with workspace-wide compile and test evidence; do not mechanically rename the workspace to match the target diagram.
+The v0.2 topology is a target, not a statement that all packages already exist. The P0 implementation now introduces `aj-core`, `aj-kernel`, and `aj-sim`, and builds on the existing `ajentir-state` package. The state package's current reducer API still requires a law-focused redesign before the full P0 reducer-law acceptance gate can be claimed complete.
+
+## P0 implementation slice
+
+- `aj-core`: validated run/thread/node/checkpoint identifiers and logical super-step type.
+- `aj-kernel`: frozen-frontier validation, complete-result validation, canonical node-ID write merge, atomic candidate-state publication, and deterministic successor-frontier construction.
+- `aj-sim`: bounded exhaustive completion-order permutation checks.
+
+This slice is an in-memory merge/route/commit boundary. It does not yet schedule or execute asynchronous node futures, provide a durable commit protocol, or implement the complete v0.2 seven-invariant set. Those are subsequent implementation gates.
 
 ## Implementation sequence
 
-1. **P0 — Kernel foundation:** core contracts, typed state, in-memory kernel and deterministic simulator. Exit: reducer laws and merge determinism under permuted completion order.
+1. **P0 — Kernel foundation:** core contracts, typed state, in-memory kernel and deterministic simulator. Exit: reducer laws and deterministic merge pass under permuted completion order.
 2. **P1 — Durable store:** store traits/conformance, SQLite, task records, CAS and leases. Exit: crash-at-every-await and peer-regression corpus pass.
 3. **P2 — Model and ledger:** provider trait, manifests, request builder, cache planner, cost ledger and two providers. Exit: usage reconciliation and stable prefix across resume.
 4. **P3 — Control and effects:** durable hooks, park/resume, budgets, Postgres and effect journal. Exit: simulator approval/park and state-write recovery hypotheses pass.
 5. **P4 — Cost/context/tools:** router, context admission, deferred discovery and typed plan IR. Exit: admission, tool deferral and cache-aware routing experiments runnable against real providers.
 6. **P5 — Evaluation:** adapters for peer runtimes and a comparative report scoring every hypothesis, including refutations.
-
-Phases are ordered by dependency and testable exit criteria, not by feature count.
 
 ## Verification and claims
 
