@@ -22,8 +22,44 @@ pub enum ChannelReducer {
     AppendMessages,
     /// Merge object keys; incoming values replace existing values for a key.
     MergeMap,
-    /// Keep the value with the greatest integer `timestamp` field.
+    /// Keep the value with the greatest integer `timestamp` field. Equal
+    /// timestamps are resolved by lexicographically greatest canonical JSON,
+    /// making the operation total and associative.
     MaxByTimestamp,
+}
+
+impl ChannelReducer {
+    /// The reducer identity. `None` represents an absent channel value and is
+    /// the two-sided identity for every reducer.
+    pub fn identity(self) -> Option<serde_json::Value> {
+        None
+    }
+
+    /// Combine two optional values using this reducer.
+    ///
+    /// The operation is associative. It is intentionally not necessarily
+    /// commutative: the kernel folds node contributions in canonical node-ID
+    /// order, which gives LastWriteWins, append and right-biased map merge a
+    /// stable meaning independent of task completion order.
+    pub fn combine(
+        self,
+        channel: &str,
+        left: Option<&serde_json::Value>,
+        right: Option<&serde_json::Value>,
+    ) -> Result<Option<serde_json::Value>, StateError> {
+        match (left, right) {
+            (None, None) => Ok(self.identity()),
+            (Some(value), None) | (None, Some(value)) => {
+                validate_value_shape(channel, self, value)?;
+                Ok(Some(value.clone()))
+            }
+            (Some(left), Some(right)) => {
+                validate_value_shape(channel, self, left)?;
+                validate_value_shape(channel, self, right)?;
+                reduce_values(channel, self, left, right).map(Some)
+            }
+        }
+    }
 }
 
 /// A node's updates for one completed or interrupted super-step.
@@ -292,10 +328,10 @@ fn apply_channel_updates(
     for (name, incoming) in updates {
         let definition = schema.definition(&name)?;
         validate_value_shape(&name, definition.reducer, &incoming)?;
-        let reduced = match candidate.get(&name) {
-            Some(current) => reduce(&name, definition.reducer, current, &incoming)?,
-            None => incoming,
-        };
+        let reduced = definition
+            .reducer
+            .combine(&name, candidate.get(&name), Some(&incoming))?
+            .ok_or_else(|| StateError::InvalidValueShape(name.clone()))?;
         candidate.insert(name, reduced);
     }
     Ok(())
@@ -346,7 +382,7 @@ fn timestamp_as_i128(value: &serde_json::Value) -> Option<i128> {
         .or_else(|| value.as_u64().map(i128::from))
 }
 
-fn reduce(
+fn reduce_values(
     channel: &str,
     reducer: ChannelReducer,
     current: &serde_json::Value,
@@ -355,41 +391,42 @@ fn reduce(
     match reducer {
         ChannelReducer::LastWriteWins => Ok(incoming.clone()),
         ChannelReducer::AppendList | ChannelReducer::AppendMessages => {
-            let mut combined = current.as_array().cloned().unwrap_or_default();
-            if let Some(items) = incoming.as_array() {
-                combined.extend(items.iter().cloned());
-            }
+            let mut combined = current.as_array().cloned()
+                .ok_or_else(|| StateError::InvalidValueShape(channel.to_owned()))?;
+            let items = incoming.as_array()
+                .ok_or_else(|| StateError::InvalidValueShape(channel.to_owned()))?;
+            combined.extend(items.iter().cloned());
             Ok(serde_json::Value::Array(combined))
         }
         ChannelReducer::MergeMap => {
-            let mut combined = current.as_object().cloned().unwrap_or_default();
-            if let Some(entries) = incoming.as_object() {
-                for (key, value) in entries {
-                    combined.insert(key.clone(), value.clone());
-                }
+            let mut combined = current.as_object().cloned()
+                .ok_or_else(|| StateError::InvalidValueShape(channel.to_owned()))?;
+            let entries = incoming.as_object()
+                .ok_or_else(|| StateError::InvalidValueShape(channel.to_owned()))?;
+            for (key, value) in entries {
+                combined.insert(key.clone(), value.clone());
             }
             Ok(serde_json::Value::Object(combined))
         }
         ChannelReducer::MaxByTimestamp => {
-            let current_object = current.as_object();
-            let incoming_object = incoming.as_object();
-            let current_timestamp = current_object
+            let current_timestamp = current.as_object()
                 .and_then(|object| object.get("timestamp"))
-                .and_then(timestamp_as_i128);
-            let incoming_timestamp = incoming_object
+                .and_then(timestamp_as_i128)
+                .ok_or_else(|| StateError::InvalidValueShape(channel.to_owned()))?;
+            let incoming_timestamp = incoming.as_object()
                 .and_then(|object| object.get("timestamp"))
-                .and_then(timestamp_as_i128);
-
-            match (current_timestamp, incoming_timestamp) {
-                (Some(current_time), Some(incoming_time)) if incoming_time > current_time => {
-                    Ok(incoming.clone())
-                }
-                (Some(current_time), Some(incoming_time)) if incoming_time < current_time => {
-                    Ok(current.clone())
-                }
-                (Some(_), Some(_)) if current == incoming => Ok(current.clone()),
-                (Some(_), Some(_)) => Err(StateError::TimestampConflict(channel.to_owned())),
-                _ => Err(StateError::InvalidValueShape(channel.to_owned())),
+                .and_then(timestamp_as_i128)
+                .ok_or_else(|| StateError::InvalidValueShape(channel.to_owned()))?;
+            if incoming_timestamp > current_timestamp {
+                Ok(incoming.clone())
+            } else if incoming_timestamp < current_timestamp {
+                Ok(current.clone())
+            } else {
+                let current_bytes = serde_json::to_vec(current)
+                    .map_err(|error| StateError::Serialization(error.to_string()))?;
+                let incoming_bytes = serde_json::to_vec(incoming)
+                    .map_err(|error| StateError::Serialization(error.to_string()))?;
+                if incoming_bytes > current_bytes { Ok(incoming.clone()) } else { Ok(current.clone()) }
             }
         }
     }
@@ -502,15 +539,42 @@ mod tests {
     }
 
     #[test]
-    fn max_by_timestamp_rejects_ambiguous_ties() {
-        let mut state = state_with(ChannelReducer::MaxByTimestamp);
-        assert!(state
-            .apply_updates(update(serde_json::json!({"timestamp": 10, "value": "a"})))
-            .is_ok());
-        assert_eq!(
-            state.apply_updates(update(serde_json::json!({"timestamp": 10, "value": "b"}))),
-            Err(StateError::TimestampConflict("data".to_owned()))
-        );
+    fn max_by_timestamp_resolves_ties_deterministically() {
+        let mut first = state_with(ChannelReducer::MaxByTimestamp);
+        let mut second = state_with(ChannelReducer::MaxByTimestamp);
+        let a = serde_json::json!({"timestamp": 10, "value": "a"});
+        let b = serde_json::json!({"timestamp": 10, "value": "b"});
+        assert!(first.apply_updates(update(a.clone())).is_ok());
+        assert!(first.apply_updates(update(b.clone())).is_ok());
+        assert!(second.apply_updates(update(b)).is_ok());
+        assert!(second.apply_updates(update(a)).is_ok());
+        assert_eq!(first.get("data"), second.get("data"));
+    }
+
+    #[test]
+    fn every_reducer_has_a_two_sided_identity_and_is_associative() {
+        let cases = [
+            (ChannelReducer::LastWriteWins, serde_json::json!(1), serde_json::json!(2), serde_json::json!(3)),
+            (ChannelReducer::AppendList, serde_json::json!([1]), serde_json::json!([2]), serde_json::json!([3])),
+            (ChannelReducer::AppendMessages, serde_json::json!([{"id":"a"}]), serde_json::json!([{"id":"b"}]), serde_json::json!([{"id":"c"}])),
+            (ChannelReducer::MergeMap, serde_json::json!({"a":1}), serde_json::json!({"b":2}), serde_json::json!({"c":3})),
+            (ChannelReducer::MaxByTimestamp, serde_json::json!({"timestamp":1,"value":"a"}), serde_json::json!({"timestamp":2,"value":"b"}), serde_json::json!({"timestamp":2,"value":"c"})),
+        ];
+
+        for (reducer, a, b, c) in cases {
+            let identity = reducer.identity();
+            assert_eq!(reducer.combine("law", identity.as_ref(), Some(&a)), Ok(Some(a.clone())));
+            assert_eq!(reducer.combine("law", Some(&a), identity.as_ref()), Ok(Some(a.clone())));
+
+            let ab = reducer.combine("law", Some(&a), Some(&b));
+            let bc = reducer.combine("law", Some(&b), Some(&c));
+            assert!(ab.is_ok() && bc.is_ok());
+            if let (Ok(Some(ab)), Ok(Some(bc))) = (ab, bc) {
+                let left = reducer.combine("law", Some(&ab), Some(&c));
+                let right = reducer.combine("law", Some(&a), Some(&bc));
+                assert_eq!(left, right, "associativity failed for {reducer:?}");
+            }
+        }
     }
 
     #[test]
