@@ -1,0 +1,16 @@
+[package]
+name = "aj-sim"
+version.workspace = true
+edition.workspace = true
+license = "MIT"
+description = "Deterministic completion-order simulator for AJENTIR."
+repository = "https://github.com/KigHeart/ajentir"
+
+[lints]
+workspace = true
+
+[dependencies]
+aj-core = { path = "../aj-core", version = "0.42.0" }
+aj-kernel = { path = "../aj-kernel", version = "0.42.0" }
+ajentir-state = { path = "../ajentir", version = "0.42.0" }
+serde_json = { workspace = true }
