@@ -5,9 +5,6 @@ use ajentir_state::{ChannelState, NodeUpdate, StateError};
 use std::collections::BTreeSet;
 use thiserror::Error;
 
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct NodeInput { pub node_id: NodeId, pub super_step: SuperStep }
-
 #[derive(Clone, Debug, PartialEq)]
 pub struct NodeResult {
     pub node_id: NodeId,
@@ -16,7 +13,11 @@ pub struct NodeResult {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub struct SuperStepCommit { pub completed_step: SuperStep, pub next_frontier: Vec<NodeId> }
+pub struct SuperStepCommit {
+    pub completed_step: SuperStep,
+    pub next_step: SuperStep,
+    pub next_frontier: Vec<NodeId>,
+}
 
 #[derive(Debug, Error, PartialEq, Eq)]
 pub enum KernelError {
@@ -70,10 +71,13 @@ impl BspKernel {
 
         let mut candidate = state.clone();
         candidate.apply_node_updates(updates)?;
-        let next_step = super_step.0.checked_add(1).ok_or(KernelError::StepOverflow)?;
-        let _ = next_step;
+        let next_step = SuperStep(super_step.0.checked_add(1).ok_or(KernelError::StepOverflow)?);
         *state = candidate;
-        Ok(SuperStepCommit { completed_step: super_step, next_frontier: next_frontier.into_iter().collect() })
+        Ok(SuperStepCommit {
+            completed_step: super_step,
+            next_step,
+            next_frontier: next_frontier.into_iter().collect(),
+        })
     }
 }
 
