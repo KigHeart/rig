@@ -68,14 +68,16 @@ fn collect_permutations(
 ) {
     if current.len() == results.len() { output.push(current.clone()); return; }
     for index in 0..results.len() {
-        if used[index] { continue; }
-        used[index] = true;
+        let Some(is_used) = used.get(index).copied() else { continue; };
+        if is_used { continue; }
+        let Some(slot) = used.get_mut(index) else { continue; };
+        *slot = true;
         if let Some(result) = results.get(index) {
             current.push(result.clone());
             collect_permutations(results, used, current, output);
             let _ = current.pop();
         }
-        used[index] = false;
+        if let Some(slot) = used.get_mut(index) { *slot = false; }
     }
 }
 
