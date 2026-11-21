@@ -38,8 +38,8 @@ jobs:
       - name: Check complete workspace
         run: cargo check --workspace --all-targets --locked
 
-      - name: Test durable state component
-        run: cargo test -p ajentir-state --locked
+      - name: Test P0 runtime foundation
+        run: cargo test -p aj-core -p ajentir-state -p aj-kernel -p aj-sim --locked
 
-      - name: Lint AJENTIR state component
-        run: cargo clippy -p ajentir-state --all-targets --all-features --locked -- -D warnings
+      - name: Lint P0 runtime foundation
+        run: cargo clippy -p aj-core -p ajentir-state -p aj-kernel -p aj-sim --all-targets --all-features --locked -- -D warnings
