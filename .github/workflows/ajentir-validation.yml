@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - "ajentir/root-facade-migration"
+      - "ajentir/p0-kernel-foundation"
   pull_request:
     branches:
       - "**"
