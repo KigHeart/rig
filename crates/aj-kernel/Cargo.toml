@@ -12,4 +12,5 @@ workspace = true
 [dependencies]
 aj-core = { path = "../aj-core", version = "0.42.0" }
 ajentir-state = { path = "../ajentir", version = "0.42.0" }
+serde_json = { workspace = true }
 thiserror = { workspace = true }
