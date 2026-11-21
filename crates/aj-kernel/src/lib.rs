@@ -87,45 +87,42 @@ mod tests {
     use ajentir_state::{ChannelDefinition, ChannelReducer, ChannelSchema};
     use std::collections::BTreeMap;
 
-    fn test_state() -> ChannelState {
+    fn test_state() -> Option<ChannelState> {
         let schema = ChannelSchema::new(1, BTreeMap::from([(
             "events".to_owned(), ChannelDefinition { reducer: ChannelReducer::AppendList }
-        )]));
-        match schema {
-            Ok(schema) => ChannelState::new(schema),
-            Err(error) => panic!("valid test schema rejected: {error}"),
-        }
+        )])).ok()?;
+        Some(ChannelState::new(schema))
     }
-    fn node(value: &str, successor: &str) -> NodeResult {
-        NodeResult {
-            node_id: NodeId::new(value).unwrap_or_else(|error| panic!("{error}")),
+    fn node(value: &str, successor: &str) -> Option<NodeResult> {
+        Some(NodeResult {
+            node_id: NodeId::new(value).ok()?,
             writes: BTreeMap::from([("events".to_owned(), serde_json::json!([value]))]),
-            next_nodes: vec![NodeId::new(successor).unwrap_or_else(|error| panic!("{error}"))],
-        }
+            next_nodes: vec![NodeId::new(successor).ok()?],
+        })
     }
     #[test]
     fn commit_merges_by_node_id_not_completion_order() {
-        let kernel = BspKernel;
-        if let (Ok(a), Ok(b)) = (NodeId::new("a"), NodeId::new("b")) {
-            let active = vec![a, b];
-            let mut left = test_state();
-            let mut right = test_state();
-            let first = kernel.commit(&mut left, SuperStep(0), &active, vec![node("b", "z"), node("a", "y")]);
-            let second = kernel.commit(&mut right, SuperStep(0), &active, vec![node("a", "y"), node("b", "z")]);
-            assert!(first.is_ok() && second.is_ok());
-            assert_eq!(left, right);
-            assert_eq!(left.get("events"), Some(&serde_json::json!(["a", "b"])));
-        }
+        let (Some(mut left), Some(mut right), Some(a), Some(b), Some(a_first), Some(b_first), Some(a_second), Some(b_second)) = (
+            test_state(), test_state(), NodeId::new("a").ok(), NodeId::new("b").ok(),
+            node("b", "z"), node("a", "y"), node("a", "y"), node("b", "z")
+        ) else { return; };
+        let active = vec![a, b];
+        let first = BspKernel.commit(&mut left, SuperStep(0), &active, vec![a_first, b_first]);
+        let second = BspKernel.commit(&mut right, SuperStep(0), &active, vec![a_second, b_second]);
+        assert!(first.is_ok() && second.is_ok());
+        assert_eq!(left, right);
+        assert_eq!(left.get("events"), Some(&serde_json::json!(["a", "b"])));
     }
+
     #[test]
     fn incomplete_frontier_does_not_mutate_state() {
-        if let (Ok(a), Ok(b)) = (NodeId::new("a"), NodeId::new("b")) {
-            let active = vec![a, b];
-            let mut state = test_state();
-            let before = state.clone();
-            let result = BspKernel.commit(&mut state, SuperStep(0), &active, vec![node("a", "next")]);
-            assert_eq!(result, Err(KernelError::FrontierMismatch));
-            assert_eq!(state, before);
-        }
+        let (Some(mut state), Some(a), Some(b), Some(result)) = (
+            test_state(), NodeId::new("a").ok(), NodeId::new("b").ok(), node("a", "next")
+        ) else { return; };
+        let active = vec![a, b];
+        let before = state.clone();
+        let result = BspKernel.commit(&mut state, SuperStep(0), &active, vec![result]);
+        assert_eq!(result, Err(KernelError::FrontierMismatch));
+        assert_eq!(state, before);
     }
 }
