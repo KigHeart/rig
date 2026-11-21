@@ -102,10 +102,15 @@ mod tests {
     }
     #[test]
     fn commit_merges_by_node_id_not_completion_order() {
-        let (Some(mut left), Some(mut right), Some(a), Some(b), Some(a_first), Some(b_first), Some(a_second), Some(b_second)) = (
+        let values = (
             test_state(), test_state(), NodeId::new("a").ok(), NodeId::new("b").ok(),
             node("b", "z"), node("a", "y"), node("a", "y"), node("b", "z")
-        ) else { return; };
+        );
+        assert!(
+            values.0.is_some() && values.1.is_some() && values.2.is_some() && values.3.is_some()
+                && values.4.is_some() && values.5.is_some() && values.6.is_some() && values.7.is_some()
+        );
+        let (Some(mut left), Some(mut right), Some(a), Some(b), Some(a_first), Some(b_first), Some(a_second), Some(b_second)) = values else { return; };
         let active = vec![a, b];
         let first = BspKernel.commit(&mut left, SuperStep(0), &active, vec![a_first, b_first]);
         let second = BspKernel.commit(&mut right, SuperStep(0), &active, vec![a_second, b_second]);
@@ -116,9 +121,9 @@ mod tests {
 
     #[test]
     fn incomplete_frontier_does_not_mutate_state() {
-        let (Some(mut state), Some(a), Some(b), Some(result)) = (
-            test_state(), NodeId::new("a").ok(), NodeId::new("b").ok(), node("a", "next")
-        ) else { return; };
+        let values = (test_state(), NodeId::new("a").ok(), NodeId::new("b").ok(), node("a", "next"));
+        assert!(values.0.is_some() && values.1.is_some() && values.2.is_some() && values.3.is_some());
+        let (Some(mut state), Some(a), Some(b), Some(result)) = values else { return; };
         let active = vec![a, b];
         let before = state.clone();
         let result = BspKernel.commit(&mut state, SuperStep(0), &active, vec![result]);
